@@ -1,18 +1,21 @@
 ''' process tweets; python 2.x '''
-import os, sys
+import sys
+import pymongo
+TWITDIR = 'U:\Documents\Project\scrape'
+sys.path.insert(0, TWITDIR)
+import jlpb
+from nltk.stem.lancaster import LancasterStemmer
+from nltk.corpus import stopwords
+# get some handy functions 
 
 
 import re, string, json
 from pprint import pprint
 
 from collections import Counter
-from nltk.stem.lancaster import LancasterStemmer
-from nltk.corpus import stopwords
 
-# get some handy functions 
-TWITDIR = 'U:\Documents\Project\scrape'
-sys.path.insert(0, TWITDIR)
-import jlpb
+
+
 
 
 def strip_links(text):
@@ -40,7 +43,7 @@ def strip_mentions(text):
     return ' '.join(words)
 
 
-def normalise_tweet(tweet):
+def normalise_tweet(tweet, nums=True):
     '''converts to lower case and cleans up the text.'''
 
     # regular expressions used to clean up the tweet data
@@ -63,9 +66,11 @@ def normalise_tweet(tweet):
     
     tweet = re.sub(punct_re, '', tweet)
     
-    # uncomment, to mark numbers:
-    # tweet = re.sub(number_re, 'NUM', tweet)
+    # uncomment, to remove numbers:
+    if nums:
+        tweet = re.sub(number_re, '', tweet)
 
+    
     return tweet
 
 
@@ -75,9 +80,10 @@ def parse_tweet(tweet, stemmed=False, split=True):
     #Remove the stop words.
     if split:
         tweet = tweet.strip().split(' ')
+    more_stopwords = stopwords.words('english') + ['u', 'ur', 'yr', 'k']
 
     tweet_parsed = [word for word in tweet if word not in \
-    stopwords.words('english')]
+    more_stopwords]
 
     #Lemmatize or stem the words.
     if stemmed:
@@ -110,14 +116,14 @@ You Need Leads and You Need Sign-Ups'''
     dbc = jlpb.get_dbc('Twitter', 'rawtweets')
     dbstore = jlpb.get_dbc('Twitter', 'rawtweets_prepared')
 
-    # add set of tags to a list, so then we can get the frequency
-    count_all = Counter()
-
+    
     # FIXME: check for language in tweet JSON; original.lang == 'en' 
     try:
-        tweet = normalise_tweet(T5)
+        # debug
+        pass
+        #tweet = normalise_tweet(T5)
         # print(tweet)
-        tweet = parse_tweet(tweet)
+        #tweet = parse_tweet(tweet)
         # print('parsed', tweet)
     
     except Exception as e:
@@ -125,27 +131,24 @@ You Need Leads and You Need Sign-Ups'''
         raise e
     
     
-    
-    # we just need the text field
-    tweet_cursor = dbc.find({}, {'text':1})
+    # get the tweets from mongodb:
+    results = dbc.find({"original":{'$exists':True}})
 
-    for tweet in tweet_cursor:
+    # update this batch in the database:
+    for doc in results:
+        txt = doc['original']['text']
+        print(doc['_id'])
+        n_tw = normalise_tweet(txt)
+        p_tw = parse_tweet(n_tw)
+
+        # TODO: add tweet_features also
+        # insert as a nested field of the raw tweet we already have for this ID
+        dbc.update({'_id':doc['_id']}, {\
+            '$set':{'txt.normalised':n_tw,'txt.parsed':p_tw}\
+            })
         
-        # hashtags & put in a set
-        textweet = extract_tags(tweet['text'])   
 
-        # remove blacklisted
-        outputweet = [tag for tag in text if tag.lower()[1:] not in blacklisted]
-       
-        # tally these
-        count_all.update(output)
-
-    # find frequent:
-    frequent_tags = count_all.most_common()
-    frequent_tags = [] # comment this line to repopulate db
-    for tag in frequent_tags:
-        pass
-        #dbstore.insert_one({'tag':tag[0][1:], 'count':tag[1]})
+    del results
 
 
     
