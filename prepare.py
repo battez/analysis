@@ -103,39 +103,54 @@ def tweet_features(tweet, split=False):
     # list, dict as tuple
     return tweet_bigrams
 
+def load_tokens(bigrams='data-bigram.csv', unigrams='data-unigram.csv'):
+
+    # Load in bigrams and unigrams from spreadsheet, that we will prune dataset by.
+    from csv import reader
+    invalidate_phrases = list()
+    invalidate_terms = list()
+
+    if len(bigrams):
+        # two column CSV of terms
+        with open(bigrams) as f:
+            invalidate_phrases = [tuple(line) for line in reader(f)] 
+
+    if len(unigrams):
+        # single column CSV of terms
+        with open(unigrams) as f:
+            invalidate_terms = [line[0] for line in reader(f)] 
+
+    return invalidate_phrases, invalidate_terms
 
 if __name__ == '__main__':
-    ''' clean up the text - normalise tweet-text content; store to file/db'''
+    ''' clean up the text - normalise tweet-text content; 
+    store tokenised and bigrams to file/db. 
+    Also prune out any tweets that have invalid terms'''
+    
     # MongoDB data is from scraped tweets, so hashtag entities in original.entities
     dbc = jlpb.get_dbc('Twitter', 'rawtweets')
-    dbstore = jlpb.get_dbc('Twitter', 'rawtweets_prepared')
     
     # for some output of results:
     from prettytable import PrettyTable
     total_num = dbc.count()
-
-    # get the scraped tweets from mongodb, possibly only use English (?), 
-    # that we could supplement from the API:
-    results = dbc.find() #
-    print('Total tweets gathered from queries:', total_num)
-
-    total_num_orig = dbc.find({"original":{'$exists':True}}).count()
-    print('Total tweets from queries, supplemented by Twitter API info:', total_num_orig)
-
+    # store a frequency tabulation using Counter()s:
     count_all = Counter()
-    invalidate_phrases = [('taylor','reynolds'),('jack','shinnie'),('logan','shinnie'),\
-    ('buttahatchie', 'river'),('warning', 'buttahatchie'),('pee','dee'),('hamstring','injury'),\
-    ('considine', 'taylor'),('willo','flood'),('warning','pee'),('little','pee'),('river','pee'),\
-    ('midfielder','willo'),('willo','floods'),('reynolds','considine'),('anderson','reynolds')]
-
-    # single terms we can consider as meaning the tweet is irrelevant
-    invalidate_terms = ['longoria', 'considine', 'shinnie', 'hoquiam']
+    count_all_uni = Counter()
+    num = 10 # how many to show
     
-    # update this batch in the database:
+    # Get the scraped tweets from mongodb, possibly only use English (?), 
+    # that we could supplement from the API:
+    results = dbc.find() # dbc.find({"original":{'$exists':True}}).count()
+
+    # load in from CSV n-grams we will spot and then delete corresponding rows in database:
+    invalidate_phrases, invalidate_terms = load_tokens()
+
+    # delete invalidated tweets and then update tweets in the database, with parsed text
     for doc in results[:]:
-        # use the original text as twitter provides this in most suitable format 
-        # (as compared to the rendered text of the scraped tweet)
+        
         if 'original' in doc:
+            # use the original text as twitter provides this in most suitable format 
+            # (as compared to the rendered text of the scraped tweet)
             txt = doc['original']['text']
         else:
             txt = doc['text'] # fall back to this otherwise
@@ -147,19 +162,19 @@ if __name__ == '__main__':
        
         # this tallies up bigrams:
         count_all.update(phrases)
-
+        count_all_uni.update(t_tweet)
         # we check that this tweets bigrams are not in the list of bad bigrams:
         invalidate = False
         for invalid in invalidate_phrases:
 
-            # we will delete it from the db:
+            # delete it from the db:
             if invalid in phrases:
                 invalidate = True
                 break
         
         for invalid in invalidate_terms:
 
-            # we will delete it from the db:
+            # delete it from the db:
             if invalid in t_tweet:
                 invalidate = True
                 break
@@ -168,7 +183,7 @@ if __name__ == '__main__':
             # delete  this document
             dbc.remove({'_id':doc['_id']})
             continue
-            
+
         else:
             # comment out this line to run the updates below if necessary: 
             continue
@@ -180,11 +195,19 @@ if __name__ == '__main__':
                 })
 
     # view our most frequent bigrams    
-    common = count_all.most_common(5)
+    common = count_all.most_common(num)
 
     pt = PrettyTable(field_names=['Bigram', 'Count']) 
     [pt.add_row(kv) for kv in common]
     pt.align['Bigram'], pt.align['Count'] = 'l', 'r' # Set column alignment
+
+    # use a print wrapper to view this in case of strange non-unicode chars!
+    jlpb.uprint(pt)
+
+    common = count_all_uni.most_common(num)
+    pt = PrettyTable(field_names=['Unigram', 'Count']) 
+    [pt.add_row(kv) for kv in common]
+    pt.align['Unigram'], pt.align['Count'] = 'l', 'r' # Set column alignment
 
     # use a print wrapper to view this in case of strange non-unicode chars!
     jlpb.uprint(pt)
