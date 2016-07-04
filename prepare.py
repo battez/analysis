@@ -1,4 +1,4 @@
-''' process tweets; python 2.x '''
+''' process tweets; python 3.x '''
 import sys
 import pymongo
 TWITDIR = 'U:\Documents\Project\scrape'
@@ -72,7 +72,7 @@ def normalise_tweet(tweet, nums=True):
     return tweet
 
 
-def tokenise(tweet, stemmed=False, split=True):
+def tokenise_tweet(tweet, stemmed=False, split=True):
     '''Pass this a pre-cleaned tweet string. We can then split it.
     stop words removed and remainder words stemmed if required'''
     #Remove the stop words.
@@ -137,7 +137,7 @@ if __name__ == '__main__':
     count_all = Counter()
     count_all_uni = Counter()
     num = 10 # how many to show
-    
+
     # Get the scraped tweets from mongodb, possibly only use English (?), 
     # that we could supplement from the API:
     results = dbc.find() # dbc.find({"original":{'$exists':True}}).count()
@@ -156,7 +156,7 @@ if __name__ == '__main__':
             txt = doc['text'] # fall back to this otherwise
         
         n_tweet = normalise_tweet(txt)
-        t_tweet = tokenise(n_tweet)
+        t_tweet = tokenise_tweet(n_tweet)
 
         phrases = tweet_features(t_tweet)
        
