@@ -157,7 +157,6 @@ def reply_stats(dbc):
     return r_total, float("{0:.2f}".format(percent))
 
 
-
 def extract_tweet_entities(tweets):
     '''
     FIXME: extract common entities from tweets
@@ -182,15 +181,16 @@ def extract_tweet_entities(tweets):
     symbols = [ symbol['text']
                    for tweet in tweets
                        for symbol in tweet['entities']['symbols'] ]
-               
     # In some circumstances (such as search results), the media entity
     # may not appear
-    if tweet['entities'].has_key('media'): 
-        media = [ media['url'] 
-                         for tweet in tweets  
-                            for media in tweet['entities']['media'] ]
-    else:
-        media = []
+    media = []
+    for tweet in tweets:
+       
+        if 'media' in tweet['entities']: 
+            
+            media = media + [ media['display_url'] for media in tweet['entities']['media'] ]
+        else:
+            pass
 
     return screen_names, hashtags, urls, media, symbols
 
@@ -211,6 +211,40 @@ def get_common_entities(tweets, entity_threshold=3):
     # Compute frequencies
     return [ (key,val) for (key,val) in common if val >= entity_threshold ]
 
+def summarise_entities(dbc, query=[{'$match':{'original':{'$exists':True}}} \
+    , {'$project':{'entities':'$original.entities'}}], top=20):
+    '''
+    Display summary frequencies for entities in tweets; uses PrettyTable
+    '''
+    # Retrieve all the tweets from the database:
+    # NB adjust query param if required for a standard set of tweets in a database
+    tweets = dbc.aggregate(query)
+    entities = []
+    for tweet in tweets:
+        entities.append(tweet)
+    print('\nTotal No. Tweets retrieved: ' + str(len(entities)) )
+
+    mentioned, hashtags, urls, media, symbols = extract_tweet_entities(entities)
+    
+    # normalise if needed:
+    mentioned = [term.lower() for term in mentioned]
+    hashtags = [term.lower() for term in hashtags]
+    
+    # freqs sets the entities to output:
+    freqs={'@mentioned users':mentioned, 'hashtags':hashtags, 'media_urls':media}
+    for kind, entity in freqs.items():
+        count_all = Counter()
+        count_all.update(entity)
+        common = count_all.most_common(top)
+
+        print('\nTotal No. ', kind + ': ', len(entity) )
+        pt = PrettyTable(field_names=[kind, 'Count']) 
+        [pt.add_row(kv) for kv in common]
+        pt.align[kind], pt.align['Count'] = 'l', 'r' # Set column alignment
+
+        # use a print wrapper to view this in case of strange non-unicode chars!
+        jlpb.uprint(pt)
+        del count_all        
 
 # Both below: adapted from https://github.com/dandelany/tweetalyze/
 def screen_names_in_db(dbc):
@@ -237,8 +271,6 @@ def total_tweets(dbc, threshold=1):
 
     return export_data
 
-
-
 ##
 ##
 # Process some tweets
@@ -249,20 +281,29 @@ if __name__ == '__main__':
     store tokenised and bigrams to file/db. 
     Also prune out any tweets that have invalid terms
     '''
-    
+    # for some output of results:
+    from prettytable import PrettyTable
+
+
     # MongoDB data is from scraped tweets, so hashtag entities in original.entities
     dbc = jlpb.get_dbc('Twitter', 'rawtweets')
+    
+    # output some info on the entities:
+    summarise_entities(dbc)
+    exit()
     print('num. distinct users; (NB original only):', len(screen_names_in_db(dbc)))
     print(retweet_stats(dbc))
     print(reply_stats(dbc))
+
+    
     exit()
-    # for some output of results:
-    from prettytable import PrettyTable
+    
     total_num = dbc.count()
+
     # store a frequency tabulation using Counter()s:
     count_all = Counter()
     count_all_uni = Counter()
-    count_all_hashtags = Counter()
+    
     num = 10 # how many to show
 
     # Get the scraped tweets from mongodb, possibly only use English (?), 
