@@ -4,13 +4,21 @@ Process tweets; python 3.x
 import sys
 import pymongo
 TWITDIR = 'U:\Documents\Project\scrape'
+CURR_PLATFORM = sys.platform
+if CURR_PLATFORM != 'linux':
+    TWITDIR = 'U:\Documents\Project\demoapptwitter'
+    SCRAPEDIR = 'U:\Documents\Project\scrape'
+else:
+    TWITDIR = '/home/luke/programming/'
+    SCRAPEDIR = '/home/luke/programming/scraping'#FIXME:
+
 sys.path.insert(0, TWITDIR)
+sys.path.insert(0, SCRAPEDIR)
 
 # get some handy functions 
 import jlpb
 from nltk.stem.lancaster import LancasterStemmer
 from nltk.corpus import stopwords
-from nltk import bigrams
 
 import re, string, json
 from pprint import pprint
@@ -99,21 +107,29 @@ def tokenise_tweet(tweet, stemmed=False, split=True):
 
     return tweet_parsed
 
+def tweet_trigrams(tweet, split=False):
+    '''
+    Get some trigrams from a (normalised) tweet
+    '''
+    from nltk import trigrams
+    if split:
+        tweet = tweet.split(' ')
+
+    tri_grams = trigrams(tweet)
+   
+    return list(tri_grams)
 
 def tweet_features(tweet, split=False):
     '''
     Get some text features from a (normalised) tweet
     '''
+    from nltk import bigrams
     if split:
         tweet = tweet.split(' ')
 
     tweet_bigrams = bigrams(tweet)
-    tweet_bigrams = list(tweet_bigrams)
-    # for bigrammed in bigrams(tweet):
-    #     tweet_bigrams['contains(%s)' % ','.join(bigrammed)] = True
-
-    # list, dict as tuple
-    return tweet_bigrams
+   
+    return list(tweet_bigrams)
 
 
 def load_tokens(bigrams='data-bigram.csv', unigrams='data-unigram.csv'):
@@ -141,7 +157,7 @@ def retweet_stats(dbc):
     Return num. retweets and percentage
     '''
     total = dbc.count()
-    r_total = dbc.count({'text':{'$regex':'^RT'}})
+    r_total = dbc.count({'original.text':{'$regex':'^RT'}})
     percent = 100 * (r_total / total)
     return r_total, float("{0:.2f}".format(percent)) 
 
@@ -151,16 +167,13 @@ def reply_stats(dbc):
     Return num. replies and percentage
     '''
     total = dbc.count()
-    r_total = dbc.count({'original.in_reply_to_tweet_id':{'$exists':1}, \
-    'original.in_reply_to_tweet_id':{'$ne':None} })
+    r_total = dbc.count({'original':{'$exists':1}, \
+    'original.in_reply_to_status_id':{'$ne':None} })
     percent = 100 * (r_total / total)
     return r_total, float("{0:.2f}".format(percent))
 
 
 def extract_tweet_entities(tweets):
-    '''
-    FIXME: extract common entities from tweets
-    '''
     # ref: https://dev.twitter.com/docs/tweet-entities 
 
     if len(tweets) == 0:
@@ -251,7 +264,11 @@ def screen_names_in_db(dbc):
     '''
     Returns a list of all distinct Twitter screen names in the database.
     '''
-    return dbc.distinct('original.user.screen_name') 
+
+    total = dbc.count()
+    r_total = dbc.distinct('original.user.screen_name') 
+    percent = 100 * (len(r_total) / total)
+    return len(r_total), float("{0:.2f}".format(percent))
 
 
 def total_tweets(dbc, threshold=1):
@@ -286,24 +303,29 @@ if __name__ == '__main__':
 
 
     # MongoDB data is from scraped tweets, so hashtag entities in original.entities
-    dbc = jlpb.get_dbc('Twitter', 'rawtweets')
-    
+    if CURR_PLATFORM != 'linux':
+        dbc = jlpb.get_dbc('Twitter', 'rawtweets')
+    else:
+        dbc = jlpb.get_dbc('local', 'rawtweets_clean')
+
     # output some info on the entities:
     summarise_entities(dbc)
-    exit()
-    print('num. distinct users; (NB original only):', len(screen_names_in_db(dbc)))
-    print(retweet_stats(dbc))
-    print(reply_stats(dbc))
-
-    
-    exit()
-    
     total_num = dbc.count()
+
+    # UNCOMMENT BELOW PRINT()s TO SHOW USEFUL SUMMARY STATS:
+    # print('distinct users (num/%)', screen_names_in_db(dbc))
+    # print('retweet stats (num/%)',retweet_stats(dbc))
+    # print('reply stats (num/%)',reply_stats(dbc))
+
+    # Remove this exit() to re-run the data processing below.
+    # exit('exiting. Remove this call to re-run the processing')
+    
+    
 
     # store a frequency tabulation using Counter()s:
     count_all = Counter()
     count_all_uni = Counter()
-    
+    count_all_tri = Counter()
     num = 10 # how many to show
 
     # Get the scraped tweets from mongodb, possibly only use English (?), 
@@ -326,10 +348,13 @@ if __name__ == '__main__':
         n_tweet = normalise_tweet(txt)
         t_tweet = tokenise_tweet(n_tweet)
 
+        # bigrams etc:
         phrases = tweet_features(t_tweet)
-       
+        tri_grams = tweet_trigrams(t_tweet)
+
         # this tallies up bigrams and unigrams:
         count_all.update(phrases)
+        count_all_tri.update(tri_grams)
         count_all_uni.update(t_tweet)
 
                 # count_all_hashtags.update()
@@ -360,7 +385,8 @@ if __name__ == '__main__':
 
             # insert as a nested field of the raw tweet we already have for this ID
             dbc.update({'_id':doc['_id']}, {\
-                '$push':{'txt.bigrams': {'$each':phrases}},\
+                '$push':{'txt.bigrams': {'$each':phrases},\
+                 'txt.trigrams': {'$each':tri_grams}},\
                 '$set':{'txt.normalised':n_tweet,'txt.parsed':t_tweet}\
                 })
 
@@ -378,6 +404,16 @@ if __name__ == '__main__':
 
     # use a print wrapper to view this in case of strange non-unicode chars!
     jlpb.uprint(pt)
+
+
+    common = count_all_tri.most_common(100)
+    pt = PrettyTable(field_names=['Trigram', 'Count']) 
+    [pt.add_row(kv) for kv in common]
+    pt.align['Trigram'], pt.align['Count'] = 'l', 'r' # Set column alignment
+
+    # use a print wrapper to view this in case of strange non-unicode chars!
+    jlpb.uprint(pt)
+
 
     common = count_all_uni.most_common(num)
     pt = PrettyTable(field_names=['Unigram', 'Count']) 
