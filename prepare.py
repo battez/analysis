@@ -381,12 +381,12 @@ if __name__ == '__main__':
 
         else:
             # comment out this line to run the updates below if necessary: 
-            continue
+            # continue
 
             # insert as a nested field of the raw tweet we already have for this ID
             dbc.update({'_id':doc['_id']}, {\
-                '$push':{'txt.bigrams': {'$each':phrases},\
-                 'txt.trigrams': {'$each':tri_grams}},\
+                '$push':{'txt.trigrams': {'$each':tri_grams},\
+                'txt.bigrams': {'$each':phrases}},\
                 '$set':{'txt.normalised':n_tweet,'txt.parsed':t_tweet}\
                 })
 
