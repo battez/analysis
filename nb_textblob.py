@@ -10,8 +10,9 @@
 ##
 # method A - train on the text strings we have alone (normalised)
 ##
-from textblob.classifiers import NaiveBayesClassifier
+from textblob.classifiers import NaiveBayesClassifier, DecisionTreeClassifier
 from textblob import TextBlob
+from nltk import tokenize 
 
 import sys
 import pymongo
@@ -40,43 +41,42 @@ else:
     dbtest_set = jlpb.get_dbc('local', 'testset_a')
 
 
-## TRAINING SET
-train = []
-# keep a list of the IDs just to double-check our test set is not identical!
-train_ids = [] 
-
-results = dbc.find()
-for doc in results[:]:
-    # NB or e.g.: [ ([], 'class') , ] 
-    # record: nonnormalised; trigrams and bigrams joined
-    train.append( (doc['txt']['normalised'], str(doc['class'])) )
-    train_ids.append(doc['tweet_id'])
-
-## TEST SET
-test = []
-test_ids = []
-
-results = dbtest_set.find()
-for doc in results[:]:
-    test.append( (doc['txt']['normalised'], str(doc['class'])) )
-    if doc['tweet_id'] in train_ids:
-        print (doc['tweet_id'])
-    else:
-        test_ids.append(doc['tweet_id'])
-
-#  TextBlob will treat both forms of data OK
-# so, pass either string or unigrams...
-cl = NaiveBayesClassifier(train)
 
 
-# wraps NLTK simply: return nltk.classify.accuracy(self.classifier, test_features) 
-acc = cl.accuracy(test)
+# what is the feature ? record: nonnormalised; trigrams and bigrams joined
+params = [('original','text'), ('txt','normalised'), ('txt','parsed')]
+for param in params:
 
-print('accuracy: normalised text; train/test:', len(train), '/', len(test), '=',  acc)
-cl.show_informative_features(20)
-exit()
+    ## TRAINING SET -------------
+    train = []
+    results = dbc.find()
+    for doc in results:
+        # NB or e.g.: [ ([], 'class') , ] 
+        train.append( (doc[param[0]][param[1]], str(doc['class'])) )
+        
+    ## TEST SET -----------------
+    test = []
+    results = dbtest_set.find({'class':{'$eq':0}})  # {'class':{'$eq':1}}
+    for doc in results:
+        test.append( (doc[param[0]][param[1]], str(doc['class'])) )
+
+
+    cl = DecisionTreeClassifier(train)
+    type = 'DecisionTree'
+    # cl = NaiveBayesClassifier(train)
+    # type = 'NaiveBayes'
+
+    # wraps NLTK simply: return nltk.classify.accuracy(self.classifier, test_features) 
+    acc = cl.accuracy(test) * 100
+    print('Classifier Type      | ', type, ' with ', '.'.join(param))
+    print('Accuracy, train/test | ', '=',  str(acc), '% ,', len(train), '/', len(test))
+    #cl.show_informative_features(30)
+    print ('\n')
+    print ('\n')
+
+
 # item = item.decode('ascii', errors="replace")
-
+exit('')
 ## use the blob method as it is more convenient
 # unicode issues?
 blob = TextBlob(item)
