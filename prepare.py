@@ -229,6 +229,7 @@ def summarise_entities(dbc, query=[{'$match':{'original':{'$exists':True}}} \
     '''
     Display summary frequencies for entities in tweets; uses PrettyTable
     '''
+    from prettytable import PrettyTable
     # Retrieve all the tweets from the database:
     # NB adjust query param if required for a standard set of tweets in a database
     tweets = dbc.aggregate(query)
