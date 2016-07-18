@@ -41,24 +41,39 @@ else:
     dbtest_set = jlpb.get_dbc('local', 'testset_a')
 
 
+def join_ngrams(feats):
+    return [' '.join(item) for item in feats]
 
 
 # what is the feature ? record: nonnormalised; trigrams and bigrams joined
 params = [('original','text'), ('txt','normalised'), ('txt','parsed')]
+# params = [('txt','bigrams')]
 for param in params:
 
     ## TRAINING SET -------------
     train = []
     results = dbc.find()
-    for doc in results:
-        # NB or e.g.: [ ([], 'class') , ] 
-        train.append( (doc[param[0]][param[1]], str(doc['class'])) )
+    for doc in results[:]:
+        # NB or e.g.: [ ([], 'class') , ]
+        if(param[1] not in ['bigrams','trigrams']):
+            train.append( (doc[param[0]][param[1]], str(doc['class'])) )
+        else: 
+            # join the ngrams together so we can use them
+            ngrams = join_ngrams(doc[param[0]][param[1]])
+            train.append( (ngrams, str(doc['class'])) )
+
+
         
     ## TEST SET -----------------
     test = []
-    results = dbtest_set.find({'class':{'$eq':0}})  # {'class':{'$eq':1}}
+    results = dbtest_set.find({'class':{'$ne':1}})  # {'class':{'$eq':1}}
     for doc in results:
-        test.append( (doc[param[0]][param[1]], str(doc['class'])) )
+        if(param[1] not in ['bigrams','trigrams']):
+            test.append( (doc[param[0]][param[1]], str(doc['class'])) )
+        else:
+            # join the ngrams together so we can use them
+            ngrams = join_ngrams(doc[param[0]][param[1]])
+            test.append( (ngrams, str(doc['class'])) )
 
 
     cl = DecisionTreeClassifier(train)
