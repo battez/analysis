@@ -28,13 +28,15 @@ if __name__ == '__main__':
 
     # MongoDB data is from scraped tweets, so hashtag entities in original.entities
     if prp.CURR_PLATFORM != 'linux':
-        dbc = jlpb.get_dbc('Twitter', 'stream2flood_all')
+        dbc = jlpb.get_dbc('Twitter', 'stream2_storm_all') #stream2flood_all
     else:
         dbc = jlpb.get_dbc('local', 'stream2flood_all')
 
     query = {'t_class':{'$eq':1}}
+    query = {}
     prp.summarise_entities(dbc, query=[{'$match':query}])
 
+    exit()
     # counters for freqDists
     count_all = Counter()
     count_all_uni = Counter()
