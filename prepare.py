@@ -225,11 +225,13 @@ def get_common_entities(tweets, entity_threshold=3):
     return [ (key,val) for (key,val) in common if val >= entity_threshold ]
 
 def summarise_entities(dbc, query=[{'$match':{'original':{'$exists':True}}} \
-    , {'$project':{'entities':'$original.entities'}}], top=20):
+    , {'$project':{'entities':'$original.entities'}}], top=100):
     '''
     Display summary frequencies for entities in tweets; uses PrettyTable
     '''
     from prettytable import PrettyTable
+    from tld import get_tld
+
     # Retrieve all the tweets from the database:
     # NB adjust query param if required for a standard set of tweets in a database
     tweets = dbc.aggregate(query)
@@ -243,9 +245,12 @@ def summarise_entities(dbc, query=[{'$match':{'original':{'$exists':True}}} \
     # normalise if needed:
     mentioned = [term.lower() for term in mentioned]
     hashtags = [term.lower() for term in hashtags]
-    
+    tlds = [get_tld(term) for term in urls]
+
     # freqs sets the entities to output:
-    freqs={'@mentioned users':mentioned, 'hashtags':hashtags, 'media_urls':media}
+    freqs={'@mentioned users':mentioned, 'hashtags':hashtags, 'media_urls':media, \
+    'domains':tlds, 'links':urls}
+    
     for kind, entity in freqs.items():
         count_all = Counter()
         count_all.update(entity)

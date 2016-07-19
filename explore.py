@@ -28,7 +28,8 @@ if __name__ == '__main__':
 
     # MongoDB data is from scraped tweets, so hashtag entities in original.entities
     if prp.CURR_PLATFORM != 'linux':
-        dbc = jlpb.get_dbc('Twitter', 'stream2_storm_all') #stream2flood_all
+        #stream2flood_all, sample_stream2_990,sample_stream2_brexit,sample_stream2_rain,stream2_storm_all
+        dbc = jlpb.get_dbc('Twitter', 'sample_stream2_rain') 
     else:
         dbc = jlpb.get_dbc('local', 'stream2flood_all')
 
