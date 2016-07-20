@@ -34,8 +34,8 @@ def summarise_img(src, options=False):
     CURR_PLATFORM = sys.platform
     if CURR_PLATFORM == 'linux':
         return None
-
-    sys.path.insert(0, 'U:\Documents\Project\demoapptwitter')
+    else:
+        sys.path.insert(0, 'U:\Documents\Project\demoapptwitter')
     import config
 
     import Algorithmia
