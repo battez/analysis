@@ -21,60 +21,68 @@ except psycopg2.OperationalError as e:
 
 
 cur = conn.cursor()
-# FIXME: relational with eg : ,
-#       local_type INT NOT NULL references author(id) 
+
+
+
+
 # NB category is 'type' in original csv.
-schema = '''
-    CREATE TABLE locations(
+schema_table = '''
+    CREATE TABLE categories(
         id SERIAL PRIMARY KEY,
-        name1 character varying(255),
-        category character varying(255),
-        local_type character varying(255),
-        district character varying(255),
-        country character varying(255)
+        name character varying(255)
 );
 
 '''
-# cur.execute(schema)
+schema = '''
+    CREATE TABLE locs(
+        id SERIAL PRIMARY KEY,
+        name1 character varying(255),
+        category smallint,
+        local_type smallint,
+        district character varying(255),
+        country smallint 
+);
+'''
+
+'''
+ALTER TABLE public.locs
+ADD FOREIGN KEY (category) 
+REFERENCES public.categories(id)
+'''
+# cur.execute(schema_table)
 # conn.commit()
 # exit()
 
-
+exit('disabled for now!')
 def process_row(row, conn=False):
     '''
     Process a row of a CSV, saving to database
     '''
+    # fixme: load these categories from database ideally
     valid = ['populatedPlace', 'transportNetwork']
+    local_types = sorted(['City', 'Hamlet', 'Village', 'Suburban Area', 'Town', 'Other Settlement', \
+    'Named Road', 'Section Of Named Road', 'Section Of Numbered Road', 'Numbered Road'])
+    countries = sorted(['Yorkshire and the Humber','London','North West','Wales','South West', \
+    'Eastern','West Midlands','East Midlands','North East','South East','Scotland'])
 
-    """ use if need to filter out:
-    local_type = ['City', 'Hamlet', 'Village', 'Suburban Area', 'Town', 'Other Settlement', \
-    'Named Road', 'Section Of Named Road', 'Section Of Numbered Road', 'Numbered Road']
-    """ 
     if row[6] in valid:
         
-        print(clean_field(row[2]), row[6], 'keep',row[7], row[24], row[27]) 
-        # if row[7] not in local_type:
-        #     exit(row[7])
+        # INSERT this location to db        
         if conn:
             cur = conn.cursor()
-            query = '''
-            INSERT INTO locations (name1, category, local_type, district, country)
-            VALUES (
-            '''
+            
             values = [row[2], row[6], row[7], row[24], row[27]]
-            
             values = list(map(clean_field, values))
+
+            fields = (values[0], valid.index(values[1]) + 1, local_types.index(values[2]) + 1,\
+             values[3], countries.index(values[4]) + 1) #tuple; add one for db index to match up
             
-            table_name = 'locations'
-            
-            # FIXME :cur.execute("INSERT INTO  VALUES ('{0}')", format(values)) 
-            query = "INSERT INTO %s (name1, category, local_type, district, country) VALUES (%%s, ...)" % table_name
-            cur.execute(query, values)
+            cur.execute('INSERT INTO locs (name1, category, local_type, district, country) VALUES (%s, %s, %s, %s, %s)'\
+                , fields)
 
             conn.commit()
-            exit()
+            
     return
-
 
 
 def clean_field(field):
@@ -83,7 +91,7 @@ def clean_field(field):
     '''
     import re
     field = re.sub(r'[^a-zA-Z\d\s]','',field)
-    return field
+    return field.strip()
 
 
 def load_csv(conn):
@@ -122,33 +130,16 @@ def load_csv(conn):
                 data.close()
 
             
-                
 
-load_csv(conn)
+load_csv(conn) # takes approx. 7 mins on i5 + SSD.
 
-
-
-
-
-query = "SELECT * from LOCATIONS"
+''' # debug:
+query = "SELECT * from LOCATIONS LIMIT 200"
 cur.execute(query)
-
-
 rows = cur.fetchall()
 
-count = 0
-for row in rows:
-    if count > 4:
-        break
 
-    print ("ID = ", row[0])
-    print ("name1 = ", row[1])
-    print ("TYPE = ", row[2])
-    print ("localTYPE = ", row[3])
-    print ("district = ", row[4])
-    print ("country = ", row[5], "\n")
-    count += 1
-
+'''
 
 # tidy up db connection
 conn.close()
