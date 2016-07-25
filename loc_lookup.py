@@ -53,7 +53,6 @@ REFERENCES public.categories(id)
 # conn.commit()
 # exit()
 
-exit('disabled for now!')
 def process_row(row, conn=False):
     '''
     Process a row of a CSV, saving to database
@@ -130,8 +129,34 @@ def load_csv(conn):
                 data.close()
 
             
+## uncomment line below to run populate load of CSV to db:
+#load_csv(conn) # takes approx. 7 mins on i5 + SSD.
 
-load_csv(conn) # takes approx. 7 mins on i5 + SSD.
+# tidy up db connection
+conn.close()
+
+#
+# REMOTE connect
+con = None
+try:
+    con = psycopg2.connect(database="uk_places", user=config.DBA['user'],\
+            password=config.DBA['password'], host=config.DBA['host'], port="5432")
+    remote_cur = con.cursor() 
+    query = "select * from locs limit 5"
+    remote_cur.execute(query)
+    rows = remote_cur.fetchall()
+
+    for row in rows:
+        print (row)
+
+except psycopg2.DatabaseError as e:
+    print ('Error %s' % e )   
+    sys.exit(1)
+
+finally:
+    
+    if con:
+        con.close()
 
 ''' # debug:
 query = "SELECT * from LOCATIONS LIMIT 200"
@@ -141,5 +166,4 @@ rows = cur.fetchall()
 
 '''
 
-# tidy up db connection
-conn.close()
+
