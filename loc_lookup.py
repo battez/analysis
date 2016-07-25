@@ -10,48 +10,12 @@ else:
 
 import config
 
-# db connect:
+# Local Db connect:
 import psycopg2
-try:
-    conn = psycopg2.connect(database="uk_places", user=config.DBPOSTGRES['user'],\
-            password=config.DBPOSTGRES['password'], host="127.0.0.1", port="5432")
-except psycopg2.OperationalError as e:
-    print('Unable to connect!\n{0}').format(e)
-    sys.exit(1)
-
-
-cur = conn.cursor()
 
 
 
 
-# NB category is 'type' in original csv.
-schema_table = '''
-    CREATE TABLE categories(
-        id SERIAL PRIMARY KEY,
-        name character varying(255)
-);
-
-'''
-schema = '''
-    CREATE TABLE locs(
-        id SERIAL PRIMARY KEY,
-        name1 character varying(255),
-        category smallint,
-        local_type smallint,
-        district character varying(255),
-        country smallint 
-);
-'''
-
-'''
-ALTER TABLE public.locs
-ADD FOREIGN KEY (category) 
-REFERENCES public.categories(id)
-'''
-# cur.execute(schema_table)
-# conn.commit()
-# exit()
 
 def process_row(row, conn=False):
     '''
@@ -93,21 +57,21 @@ def clean_field(field):
     return field.strip()
 
 
-def load_csv(conn):
+def load_csv(conn, directory):
     '''
     Load in csv to database
     '''
     import os
     import csv
+
     # Load in the CSVs of lookup data
     # ensure we are in the right directory context, and then return to original at end. 
     previous_dir = os.getcwd()
-    os.chdir(r'C:\Users\johnbarker\Downloads')
+    os.chdir(directory)
 
     directory = "opname_csv_gb"
 
-    line_sep = "-" * 40 # 
-    print(" ")
+    line_sep = "-" * 40 
     print(line_sep)
     print('PROCESSING, PLEASE WAIT....')
     print(line_sep)
@@ -129,34 +93,59 @@ def load_csv(conn):
                 data.close()
 
             
-## uncomment line below to run populate load of CSV to db:
-#load_csv(conn) # takes approx. 7 mins on i5 + SSD.
 
-# tidy up db connection
-conn.close()
-
-#
-# REMOTE connect
-conn = None
-try:
-    conn = psycopg2.connect(database="uk_places", user=config.DBA['user'],\
-            password=config.DBA['password'], host=config.DBA['host'], port="5432")
-    cur = conn.cursor() 
-    query = "select * from locs limit 5"
-    cur.execute(query)
-    rows = cur.fetchall()
-
-    for row in rows:
-        print (row)
-
-except psycopg2.DatabaseError as e:
-    print ('Error %s' % e )   
-    sys.exit(1)
-
-finally:
+def populate_db(directory=None):
     
-    if conn:
-        conn.close()
+    if not directory:
+        directory = r'C:\Users\johnbarker\Downloads'
+    try:
+        conn = psycopg2.connect(database="uk_places", user=config.DBPOSTGRES['user'],\
+                password=config.DBPOSTGRES['password'], host="127.0.0.1", port="5432")
+    except psycopg2.OperationalError as e:
+        print('Unable to connect!\n{0}').format(e)
+        sys.exit(1)
+
+
+    cur = conn.cursor()
+
+    ## uncomment line below to run populate load of CSV to db:
+    load_csv(conn, directory) # takes approx. 7 mins on i5 + SSD.
+
+    # tidy up db connection
+    conn.close()
+
+
+
+if __name__ == '__main__':
+    
+     
+    # REMOTE connect
+    conn = None
+    try:
+        conn = psycopg2.connect(database="uk_places", user=config.DBA['user'],\
+                password=config.DBA['password'], host=config.DBA['host'], port="5432")
+        cur = conn.cursor() 
+        query = "select * from locs limit 5"
+        cur.execute(query)
+        rows = cur.fetchall()
+
+        for row in rows:
+            print (row)
+
+        # get a tweet
+
+        # lookup a keyword in hashtags for a location
+        # {'entities.hashtags.text':{$exists:true}} + {'entities.hashtags.text':1, 'text':1} project
+        # lookup a keyword in tweet (normalised) tokenised text for a location
+
+    except psycopg2.DatabaseError as e:
+        print ('Error %s' % e )   
+        sys.exit(1)
+
+    finally:
+        
+        if conn:
+            conn.close()
 
 
 
