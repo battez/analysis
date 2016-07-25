@@ -137,14 +137,14 @@ conn.close()
 
 #
 # REMOTE connect
-con = None
+conn = None
 try:
-    con = psycopg2.connect(database="uk_places", user=config.DBA['user'],\
+    conn = psycopg2.connect(database="uk_places", user=config.DBA['user'],\
             password=config.DBA['password'], host=config.DBA['host'], port="5432")
-    remote_cur = con.cursor() 
+    cur = conn.cursor() 
     query = "select * from locs limit 5"
-    remote_cur.execute(query)
-    rows = remote_cur.fetchall()
+    cur.execute(query)
+    rows = cur.fetchall()
 
     for row in rows:
         print (row)
@@ -155,15 +155,8 @@ except psycopg2.DatabaseError as e:
 
 finally:
     
-    if con:
-        con.close()
+    if conn:
+        conn.close()
 
-''' # debug:
-query = "SELECT * from LOCATIONS LIMIT 200"
-cur.execute(query)
-rows = cur.fetchall()
-
-
-'''
 
 
