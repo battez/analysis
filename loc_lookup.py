@@ -108,7 +108,6 @@ def populate_db(directory=None):
 
     cur = conn.cursor()
 
-    ## uncomment line below to run populate load of CSV to db:
     load_csv(conn, directory) # takes approx. 7 mins on i5 + SSD.
 
     # tidy up db connection
@@ -118,7 +117,11 @@ def populate_db(directory=None):
 
 if __name__ == '__main__':
     
-     
+    ## uncomment line below to run populate load of CSV to db:
+    ## populate_db()
+
+
+
     # REMOTE connect
     conn = None
     try:
@@ -132,11 +135,13 @@ if __name__ == '__main__':
         for row in rows:
             print (row)
 
+        # TODO: annotate tweets with features:
         # get a tweet
 
         # lookup a keyword in hashtags for a location
         # {'entities.hashtags.text':{$exists:true}} + {'entities.hashtags.text':1, 'text':1} project
         # lookup a keyword in tweet (normalised) tokenised text for a location
+
 
     except psycopg2.DatabaseError as e:
         print ('Error %s' % e )   
