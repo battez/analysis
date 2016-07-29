@@ -23,7 +23,7 @@ import prepare as prp
 import jlpb
 
 
-def print_common(freqs, num=None, print_to_file=True):
+def print_common(freqs, num=None, print_to_file=False):
     '''
     nicely print out some ngram frequencies, 
     handling any strange unicode data output.
@@ -104,6 +104,11 @@ if __name__ == '__main__':
         count_all_tri.update(tri_grams)
         count_all_uni.update(t_tweet) 
 
+        dbc.update({'_id':doc['_id']}, {\
+        '$push':{'desc_trigrams': {'$each':tri_grams},\
+        'desc_bigrams': {'$each':phrases}},\
+        '$set':{'desc_normalised':n_tweet,'desc_unigrams':t_tweet}\
+        })
     
 
     print_common({'Unigram': count_all_uni, 'Bigram':count_all, 'Trigram':count_all_tri})
