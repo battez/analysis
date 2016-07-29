@@ -1,6 +1,7 @@
 # Ignored files
 scratch.py
 *.json
+*.csv
 
 
 # Byte-compiled / optimized / DLL files

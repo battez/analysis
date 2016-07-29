@@ -16,15 +16,108 @@ Explore the flood stream set.
 # Compare with winter relevant dataset also. Ask Andy if data analysis ok for thesis?
 # 
 # for some output of results:
-from prettytable import PrettyTable
+
 from collections import Counter
 
 import prepare as prp
 import jlpb
 
 
+def print_common(freqs, num=None, print_to_file=True):
+    '''
+    nicely print out some ngram frequencies, 
+    handling any strange unicode data output.
+
+    Takes a dict with the column heading as key,
+    the data should be a colelctions Counter object.
+    '''
+    from prettytable import PrettyTable
+    from jlpb import uprint # unicode printing
+
+    if print_to_file:
+        
+        import uuid
+        import csv
+        headers = ['Words', 'Word Count']
+
+        for key, counted in freqs.items():
+
+            # open file to write to
+            filename = key + '_' + str(uuid.uuid4()) + '.csv'
+            output_file = open(filename, 'w', newline='')
+            writer = csv.writer(output_file)
+            writer.writerow(headers)  
+            common = counted.most_common(num)
+            for row in common:
+                
+                if type(row[0]) is not tuple:
+                    writer.writerow(list(row))
+                else: 
+                    writer.writerow([' '.join(row[0]), row[1] ])    
+                
+            output_file.close()
+            
+
+    else: 
+        # print to display
+        for key, counted in freqs.items():
+            
+            common = counted.most_common(num)
+            
+            pt = PrettyTable(field_names=[key, 'Count']) 
+            [pt.add_row(kval) for kval in common]
+            pt.align[key], pt.align['Count'] = 'l', 'r' # Set column alignment
+
+            # use a print wrapper to view this in case of strange non-unicode chars!
+            uprint(pt)
+
+
+
 if __name__ == '__main__':
+    #
+    # one-off process Report CSV data
+    #
+    #
+    dbc = jlpb.get_dbc('Twitter', 'reports')     
+    count_all = Counter()
+    count_all_uni = Counter()
+    count_all_tri = Counter()
+    num = None # how many to show
+
+    results = dbc.find({}).sort([("ID", 1)])
+
+
+    for doc in results[:]:
+        
+        txt = doc['FLOOD_DESC']
+
+        n_tweet = prp.normalise_tweet(txt)
+        #jlpb.uprint(n_tweet)   
+        t_tweet = prp.tokenise_tweet(n_tweet)
+
+        # bigrams etc:
+        phrases = prp.tweet_features(t_tweet)
+        tri_grams = prp.tweet_trigrams(t_tweet)
+
+        # this tallies up bigrams and unigrams:
+        count_all.update(phrases)
+        count_all_tri.update(tri_grams)
+        count_all_uni.update(t_tweet) 
+
     
+
+    print_common({'Unigram': count_all_uni, 'Bigram':count_all, 'Trigram':count_all_tri})
+
+
+
+    exit('CSV data only run. Remove me to use MongoDb')
+
+
+
+    ##
+    #
+    # end analyse the CSV data.
+    ##
 
     # MongoDB data is from scraped tweets, so hashtag entities in original.entities
     if prp.CURR_PLATFORM != 'linux':
