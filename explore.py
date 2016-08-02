@@ -23,7 +23,7 @@ import prepare as prp
 import jlpb
 
 
-def print_common(freqs, num=None, print_to_file=False):
+def print_common(freqs, num=None, print_to_file=False, suffix=''):
     '''
     nicely print out some ngram frequencies, 
     handling any strange unicode data output.
@@ -38,7 +38,7 @@ def print_common(freqs, num=None, print_to_file=False):
         
         import uuid
         import csv
-        headers = ['Words', 'Word Count']
+        headers = ['Words ' + suffix, 'Word Count']
 
         for key, counted in freqs.items():
 
@@ -78,40 +78,60 @@ if __name__ == '__main__':
     # one-off process Report CSV data
     #
     #
-    dbc = jlpb.get_dbc('Twitter', 'reports')     
+    dbc = jlpb.get_dbc('Twitter', 'reports')    
+    import re
+    # initialise counters 
     count_all = Counter()
     count_all_uni = Counter()
     count_all_tri = Counter()
-    num = None # how many to show
+    num = None # how many of top word-counts, descending, to show
 
-    results = dbc.find({}).sort([("ID", 1)])
-
-
+    results = dbc.find({}).sort([("FLOOD_CATEGORY_DESC", 1)])
+    current_category = ''
     for doc in results[:]:
         
         txt = doc['FLOOD_DESC']
+        
+        # do this separately for each category
+        if doc['FLOOD_CATEGORY_DESC'] != current_category:
+            
+            # output the most recent category first
+            if current_category != '':
+                print('printing', current_category)
+                print_common({'Unigram': count_all_uni, 'Bigram':count_all, 'Trigram':count_all_tri}, \
+                    None, True, "_".join(re.findall("[a-zA-Z]+", current_category)) )
+            
+            # assign the new category to current
+            current_category = doc['FLOOD_CATEGORY_DESC']
 
+            # re-initialise the counters
+            count_all = Counter()
+            count_all_uni = Counter()
+            count_all_tri = Counter()
+
+        # tokenise into various N-grams:
         n_tweet = prp.normalise_tweet(txt)
-        #jlpb.uprint(n_tweet)   
         t_tweet = prp.tokenise_tweet(n_tweet)
-
-        # bigrams etc:
         phrases = prp.tweet_features(t_tweet)
         tri_grams = prp.tweet_trigrams(t_tweet)
 
-        # this tallies up bigrams and unigrams:
+        # this tallies up various counts for these unigrams, bigrams etc:
         count_all.update(phrases)
         count_all_tri.update(tri_grams)
         count_all_uni.update(t_tweet) 
 
+        '''
         dbc.update({'_id':doc['_id']}, {\
         # '$push':{'desc_trigrams': {'$each':tri_grams},\
         # 'desc_bigrams': {'$each':phrases}},\
         '$set':{'desc_unigrams':' '.join(set(t_tweet))}\
         })
+        '''
     
-
-    print_common({'Unigram': count_all_uni, 'Bigram':count_all, 'Trigram':count_all_tri})
+    # print out last category:
+    print('printing', current_category)
+    print_common({'Unigram': count_all_uni, 'Bigram':count_all, 'Trigram':count_all_tri}, \
+     None, True, "_".join(re.findall("[a-zA-Z]+", current_category)) )
 
 
 
@@ -127,7 +147,7 @@ if __name__ == '__main__':
     # MongoDB data is from scraped tweets, so hashtag entities in original.entities
     if prp.CURR_PLATFORM != 'linux':
         #stream2flood_all, sample_stream2_990,sample_stream2_brexit,sample_stream2_rain,stream2_storm_all
-        dbc = jlpb.get_dbc('Twitter', 'sample_stream2_rain') 
+        dbc = jlpb.get_dbc('Twitter', 'stream2flood_all') 
     else:
         dbc = jlpb.get_dbc('local', 'stream2flood_all')
 

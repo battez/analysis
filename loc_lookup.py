@@ -124,7 +124,7 @@ def populate_db(directory=None):
 
 
 
-def lookup(values, district_search=True, limit=3, start_from=True, to_end=True):
+def lookup(values, district_search=True, limit=3, start_from=False, to_end=True):
     ''' 
     very hacky function to lookup two cols in a postgres db with regex
     of passed in list of strings
@@ -151,7 +151,7 @@ def lookup(values, district_search=True, limit=3, start_from=True, to_end=True):
             query += "'^("
 
         else:
-            query += "'"
+            query += "'("
             
         # regex case insensitive
         query += '|'.join(values)
@@ -160,7 +160,7 @@ def lookup(values, district_search=True, limit=3, start_from=True, to_end=True):
             query += ")$'"
             
         else:
-            query += "'"
+            query += ")'"
             
         query += ' LIMIT ' + str(limit)
         
@@ -170,19 +170,26 @@ def lookup(values, district_search=True, limit=3, start_from=True, to_end=True):
         rows = cursor.fetchall()
         
         # debug:
+        location = ''
         for row in rows:
             print (row)
-
+        print(len(rows))  
         if cursor.rowcount > 0:
             # we got a match so lets return the call
-            return cursor.rowcount
+            location = rows[0] # debugging
+
+            return cursor.rowcount, location
         else:
             # check other table column
             cursor.execute(query.replace('locs.name1', alt_column))
             rows = cursor.fetchall()
             for row in rows:
                 print (row)
-            return cursor.rowcount
+            
+            if cursor.rowcount > 0:
+                location = rows[0] # debugging 
+            
+            return cursor.rowcount, location
 
 
     except psycopg2.DatabaseError as e:
@@ -328,8 +335,7 @@ if __name__ == '__main__':
         ] 
     }
     bigrams = [' '.join(elm) for elm in test2['bigrams']]
-    match = lookup(['South Lanarkshire'])
+    t = ['Birnam Crescent']
+    match = lookup(t , limit=1)
     print('match: ', match)
-
-
 
