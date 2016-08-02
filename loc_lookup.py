@@ -1,5 +1,11 @@
 ''' 
 lookup locations UK open data. 
+
+NB call populate_db() (see fun below) to run populate load of CSV to db.
+
+This looks up candidate strings for location(s) in a postgres db of UK locations
+and placenames. name1, district can be text searched. Type can also (see db)
+
 '''
 import sys
 CURR_PLATFORM = sys.platform
@@ -114,12 +120,15 @@ def populate_db(directory=None):
     conn.close()
 
 
-
-if __name__ == '__main__':
+def lookup(values='', start_from=True, to_end=True):
     
-    ## uncomment line below to run populate load of CSV to db:
-    ## populate_db()
 
+    # similar query:
+    # select * from table where lower(value) similar to '%(foo|bar|baz)%';
+
+    # regex -
+    # select * from table where value ~* 'foo|bar|baz';
+    query="select * from locs where locs.name1 ~* "
 
 
     # REMOTE connect
@@ -127,20 +136,31 @@ if __name__ == '__main__':
     try:
         conn = psycopg2.connect(database="uk_places", user=config.DBA['user'],\
                 password=config.DBA['password'], host=config.DBA['host'], port="5432")
-        cur = conn.cursor() 
-        query = "select * from locs limit 5"
-        cur.execute(query)
-        rows = cur.fetchall()
+        cursor = conn.cursor() 
+        
+        # precise regex matching or not:
+        if start_from:
+            query += "'^("
+        else:
+            query += "'"
+
+        # regex case insensitive
+        query += '|'.join(values)
+
+        if to_end:
+            query += ")$'"
+        else:
+            query += "'"
+
+        print(query)
+
+        cursor.execute(query)
+        rows = cursor.fetchall()
 
         for row in rows:
             print (row)
 
-        # TODO: annotate tweets with features:
-        # get a tweet
 
-        # lookup a keyword in hashtags for a location
-        # {'entities.hashtags.text':{$exists:true}} + {'entities.hashtags.text':1, 'text':1} project
-        # lookup a keyword in tweet (normalised) tokenised text for a location
 
 
     except psycopg2.DatabaseError as e:
@@ -151,6 +171,35 @@ if __name__ == '__main__':
         
         if conn:
             conn.close()
+
+
+if __name__ == '__main__':
+    
+    ''' 
+    NB call populate_db() (see fun above) to run populate load of CSV to db.
+
+    This looks up candidate strings for location(s) in a postgres db of UK locations
+    and placenames. name1, district can be text searched. Type can also (see db)
+    '''
+
+    # probably needs to go in another file where tweets are, test here for now
+    # for each tweet
+
+        # TODO: annotate tweets with features:
+        # get a tweet
+
+        # lookup a keyword in hashtags for a location
+        # {'entities.hashtags.text':{$exists:true}} + {'entities.hashtags.text':1, 'text':1} project
+        # lookup a keyword in tweet (normalised) tokenised text for a location
+
+    # check a value where = lookup limit 1 
+  
+
+    ## Todo: - check the district also
+    candidates = ['Burragarth', 'WiDnes','taunton','Chess','wibble','nuneaton','cheshire','london','East kilbride'\
+    ,'South Lanarkshire']
+    test = ['Thunder', 'UKStorm']
+    lookup(test)
 
 
 

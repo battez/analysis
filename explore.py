@@ -105,9 +105,9 @@ if __name__ == '__main__':
         count_all_uni.update(t_tweet) 
 
         dbc.update({'_id':doc['_id']}, {\
-        '$push':{'desc_trigrams': {'$each':tri_grams},\
-        'desc_bigrams': {'$each':phrases}},\
-        '$set':{'desc_normalised':n_tweet,'desc_unigrams':t_tweet}\
+        # '$push':{'desc_trigrams': {'$each':tri_grams},\
+        # 'desc_bigrams': {'$each':phrases}},\
+        '$set':{'desc_unigrams':' '.join(set(t_tweet))}\
         })
     
 
