@@ -46,7 +46,8 @@ def process_row(row, conn=False):
             fields = (values[0], valid.index(values[1]) + 1, local_types.index(values[2]) + 1,\
              values[3], countries.index(values[4]) + 1) #tuple; add one for db index to match up
             
-            cur.execute('INSERT INTO locs (name1, category, local_type, district, country) VALUES (%s, %s, %s, %s, %s)'\
+            cur.execute(\
+            'INSERT INTO locs (name1, category, local_type, district, country) VALUES (%s, %s, %s, %s, %s)'\
                 , fields)
 
             conn.commit()
@@ -56,7 +57,7 @@ def process_row(row, conn=False):
 
 def clean_field(field):
     '''
-    Leave just letters numbers and spaces
+    Leave only letters, numbers and spaces
     '''
     import re
     field = re.sub(r'[^a-zA-Z\d\s]','',field)
@@ -65,7 +66,7 @@ def clean_field(field):
 
 def load_csv(conn, directory):
     '''
-    Load in csv to database
+    Load in a CSV file's data to database
     '''
     import os
     import csv
@@ -120,47 +121,68 @@ def populate_db(directory=None):
     conn.close()
 
 
-def lookup(values='', start_from=True, to_end=True):
-    
-
-    # similar query:
-    # select * from table where lower(value) similar to '%(foo|bar|baz)%';
-
-    # regex -
-    # select * from table where value ~* 'foo|bar|baz';
-    query="select * from locs where locs.name1 ~* "
 
 
-    # REMOTE connect
+
+def lookup(values, district_search=True, limit=3, start_from=True, to_end=True):
+    ''' 
+    very hacky function to lookup two cols in a postgres db with regex
+    of passed in list of strings
+    '''
+    # REMOTE connection
     conn = None
     try:
         conn = psycopg2.connect(database="uk_places", user=config.DBA['user'],\
                 password=config.DBA['password'], host=config.DBA['host'], port="5432")
         cursor = conn.cursor() 
         
+        # BUILD SELECT QUERY
+        # Fixme: possibly speed improve the query with these syntax:
+        # similar query:
+        # select * from table where lower(value) similar to '%(foo|bar|baz)%';
+
+        # regex -
+        # select * from table where value ~* 'foo|bar|baz';
+        query = "select * from locs where locs.name1 ~* "
+        alt_column = "locs.district"
+
         # precise regex matching or not:
         if start_from:
             query += "'^("
+
         else:
             query += "'"
-
+            
         # regex case insensitive
         query += '|'.join(values)
-
+        
         if to_end:
             query += ")$'"
+            
         else:
             query += "'"
-
+            
+        query += ' LIMIT ' + str(limit)
+        
         print(query)
 
         cursor.execute(query)
         rows = cursor.fetchall()
-
+        
+        # debug:
         for row in rows:
             print (row)
 
-
+        if cursor.rowcount > 0:
+            # we got a match so lets return the call
+            return cursor.rowcount
+        else:
+            # check other table column
+            cursor.execute(query.replace('locs.name1', alt_column))
+            rows = cursor.fetchall()
+            for row in rows:
+                print (row)
+            return cursor.rowcount
 
 
     except psycopg2.DatabaseError as e:
@@ -196,10 +218,118 @@ if __name__ == '__main__':
   
 
     ## Todo: - check the district also
-    candidates = ['Burragarth', 'WiDnes','taunton','Chess','wibble','nuneaton','cheshire','london','East kilbride'\
+    candidates = ['Burragarth', 'Birnam Crescent', 'WiDnes','taunton','Chess','wibble','nuneaton','cheshire','lanark','East kilbride'\
     ,'South Lanarkshire']
-    test = ['Thunder', 'UKStorm']
-    lookup(test)
+    test = ['Thunder', 'UKStorm','Ham', 'London'] # London issue!
+    test2 = {
+    "parsed" : [
+            "flood", 
+            "alert", 
+            "test", 
+            "upper", 
+            "dee", 
+            "valley", 
+            "llanuwchllyn", 
+            "llangolle", 
+            "pic", 
+            "twitter", 
+            "com", 
+            "ccrptjhsjw"
+        ], 
+        "bigrams" : [
+            [
+                "flood", 
+                "alert"
+            ], 
+            [
+                "alert", 
+                "test"
+            ], 
+            [
+                "test", 
+                "upper"
+            ], 
+            [
+                "upper", 
+                "dee"
+            ], 
+            [
+                "dee", 
+                "valley"
+            ], 
+            [
+                "valley", 
+                "llanuwchllyn"
+            ], 
+            [
+                "llanuwchllyn", 
+                "llangolle"
+            ], 
+            [
+                "llangolle", 
+                "pic"
+            ], 
+            [
+                "pic", 
+                "twitter"
+            ], 
+            [
+                "twitter", 
+                "com"
+            ], 
+            [
+                "com", 
+                "ccrptjhsjw"
+            ], 
+            [
+                "flood", 
+                "alert"
+            ], 
+            [
+                "alert", 
+                "test"
+            ], 
+            [
+                "test", 
+                "upper"
+            ], 
+            [
+                "upper", 
+                "dee"
+            ], 
+            [
+                "dee", 
+                "valley"
+            ], 
+            [
+                "valley", 
+                "llanuwchllyn"
+            ], 
+            [
+                "llanuwchllyn", 
+                "llangolle"
+            ], 
+            [
+                "llangolle", 
+                "pic"
+            ], 
+            [
+                "pic", 
+                "twitter"
+            ], 
+            [
+                "twitter", 
+                "com"
+            ], 
+            [
+                "com", 
+                "ccrptjhsjw"
+            ]
+        ] 
+    }
+    bigrams = [' '.join(elm) for elm in test2['bigrams']]
+    match = lookup(['South Lanarkshire'])
+    print('match: ', match)
 
 
 
