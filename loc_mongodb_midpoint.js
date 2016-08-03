@@ -59,9 +59,22 @@ db.stream2flood_all.find().limit(5).forEach(
     // print(doc.place.bounding_box.coordinates[0][2][0]);
     // print(doc.place_centre_pt['coordinates'].reverse());
     
-
     db.stream2flood_all.save(doc);
-	}
+	
+    }
 )
 
+
+// query to duplicate the first bounding box coord to end of the Polygon, 
+// so that it can be indexed validly in MongoDB geospatial index.
+db.stream2flood_all.find().limit(1).forEach(
+  function(doc){
+    
+    var endpoint = doc.place.bounding_box.coordinates[0][0];
+
+    //print(endpoint);
+    doc.place.bounding_box.coordinates[0].push(endpoint);
+    db.stream2flood_all.save(doc);
+        
+  }
 
