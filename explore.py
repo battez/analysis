@@ -129,7 +129,6 @@ if __name__ == '__main__':
         '''
     
     # print out last category:
-    print('printing', current_category)
     print_common({'Unigram': count_all_uni, 'Bigram':count_all, 'Trigram':count_all_tri}, \
      None, True, "_".join(re.findall("[a-zA-Z]+", current_category)) )
 
@@ -182,5 +181,4 @@ if __name__ == '__main__':
         count_all_tri.update(tri_grams)
         count_all_uni.update(t_tweet) 
 
-    exit('ends -----------')
     

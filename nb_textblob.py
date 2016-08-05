@@ -45,6 +45,79 @@ def join_ngrams(feats):
     return [' '.join(item) for item in feats]
 
 
+
+
+
+
+def resolve_http_redirect(url, depth=0):
+    '''
+    Recursively follow redirects until there isn't a location header
+    Credit: http://www.zacwitte.com/resolving-http-redirects-in-python
+    Jlpb updates for py3k
+    '''
+    from urllib.parse import urlparse
+    import http.client
+
+    if depth > 10:
+        raise Exception("Redirected "+depth+" times, giving up.")
+    o = urlparse(url,allow_fragments=True)
+    conn = http.client.HTTPConnection(o.netloc)
+    path = o.path
+    if o.query:
+        path +='?'+o.query
+    conn.request("HEAD", path)
+    res = conn.getresponse()
+    headers = dict(res.getheaders())
+    if 'location' in headers and headers['location'] != url:
+        return resolve_http_redirect(headers['location'], depth+1)
+    else:
+        return url
+
+
+# This is for Py2k.  For Py3k, use http.client and urllib.parse instead, and
+# use // instead of / for the division
+
+
+
+
+def summarise_links(dbc):
+    '''
+    Populate a mongo collection with article summaries for 
+    its tweets' URL entities.
+
+    Fixme: at the moment only uses the first URL for that tweet,
+    as any second URLs often just for a thrid party app. But could 
+    be improved.
+    '''
+    import summarise
+    
+    # get all tweets with url entities
+    
+    query = {'entities.urls.0.expanded_url':{"$exists":True}}
+    results = dbc.find(query)
+   
+    
+    
+    for doc in results:
+        
+        # returns: title, keywords, summary, top_img_src
+        resolved_url = resolve_http_redirect(doc['entities']['urls'][0]['expanded_url'], 0)
+        print(resolved_url)
+        summary = summarise.summarise_one(resolved_url, \
+         True, True, True, False)
+        print(summary)
+
+        print('done')
+        exit('first')
+
+        # save the results back to that tweet
+        dbc.update({'_id':doc['_id']}, {\
+        '$push':{'url.keywords': {'$each':summary[1]}},\
+        '$set':{'url.title':summary[0],'url.summary':summary[2]} })
+
+summarise_links(jlpb.get_dbc('Twitter', 'stream2flood_all'))
+
+exit('completed summaries')
 # what is the feature ? record: nonnormalised; trigrams and bigrams joined
 params = [('original','text'), ('txt','normalised'), ('txt','parsed')]
 # params = [('txt','bigrams')]
