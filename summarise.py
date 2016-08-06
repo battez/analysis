@@ -1,7 +1,7 @@
 '''
 summarise url (s) and other web resources
 '''
-from newspaper import Article
+from newspaper import Article, Config
 
 
 def summarise_one(url, title=True, keywords=True, summary=False, top_img_src=False):
@@ -9,6 +9,11 @@ def summarise_one(url, title=True, keywords=True, summary=False, top_img_src=Fal
     Get url and return summary 
     '''
     article = Article(url)
+    # configuration for Newspaper to minimize processing time
+    configure = Config()
+    configure.fetch_images = False
+    configure.MAX_SUMMARY = 300
+    configure.MAX_SUMMARY_SENT = 3
     article.download()
     article.parse()
     title = article.title
@@ -18,6 +23,7 @@ def summarise_one(url, title=True, keywords=True, summary=False, top_img_src=Fal
             keywords = article.keywords
         if summary:
             summary = article.summary
+            
 
     if top_img_src:
         top_img_src = article.top_image

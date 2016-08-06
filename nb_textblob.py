@@ -45,12 +45,21 @@ def join_ngrams(feats):
     return [' '.join(item) for item in feats]
 
 
-
-
+def resolve_redirect(url):
+    '''
+    follow redirects until there isn't any more redirects,
+    works better than below fn!
+    '''
+    import requests
+    # verify can be set to False for more laxity but only if needed. And Insecure!
+    req = requests.head(url, allow_redirects=True, verify=True) 
+    
+    return req.url
 
 
 def resolve_http_redirect(url, depth=0):
     '''
+    -- Not using at present as did not work as well as above fn --
     Recursively follow redirects until there isn't a location header
     Credit: http://www.zacwitte.com/resolving-http-redirects-in-python
     Jlpb updates for py3k
@@ -74,42 +83,34 @@ def resolve_http_redirect(url, depth=0):
         return url
 
 
-# This is for Py2k.  For Py3k, use http.client and urllib.parse instead, and
-# use // instead of / for the division
-
-
-
-
 def summarise_links(dbc):
     '''
     Populate a mongo collection with article summaries for 
     its tweets' URL entities.
 
     Fixme: at the moment only uses the first URL for that tweet,
-    as any second URLs often just for a thrid party app. But could 
-    be improved.
+    as any second URLs often just for a 3rd party app. But could 
+    be extended.
     '''
     import summarise
     
     # get all tweets with url entities
-    
     query = {'entities.urls.0.expanded_url':{"$exists":True}}
-    results = dbc.find(query)
+    results = dbc.find(query).limit(1)
    
-    
-    
-    for doc in results:
+    for doc in results[:]:
         
         # returns: title, keywords, summary, top_img_src
-        resolved_url = resolve_http_redirect(doc['entities']['urls'][0]['expanded_url'], 0)
-        print(resolved_url)
-        summary = summarise.summarise_one(resolved_url, \
-         True, True, True, False)
-        print(summary)
+        resolved_url = resolve_redirect(doc['entities']['urls'][0]['expanded_url'])
+        
+        try:
+            summary = summarise.summarise_one(resolved_url, \
+           T rue, True, True, False)
 
-        print('done')
-        exit('first')
-
+        except Exception as e:
+            print(e)
+            continue
+    
         # save the results back to that tweet
         dbc.update({'_id':doc['_id']}, {\
         '$push':{'url.keywords': {'$each':summary[1]}},\
@@ -117,9 +118,13 @@ def summarise_links(dbc):
 
 summarise_links(jlpb.get_dbc('Twitter', 'stream2flood_all'))
 
+from time import sleep
+sleep(1)
 exit('completed summaries')
+
 # what is the feature ? record: nonnormalised; trigrams and bigrams joined
 params = [('original','text'), ('txt','normalised'), ('txt','parsed')]
+
 # params = [('txt','bigrams')]
 for param in params:
 
