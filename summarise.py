@@ -14,17 +14,25 @@ def summarise_one(url, title=True, keywords=True, summary=False, top_img_src=Fal
     configure.fetch_images = False
     configure.MAX_SUMMARY = 300
     configure.MAX_SUMMARY_SENT = 3
-    article.download()
-    article.parse()
+    
+    try:
+        article.download()
+        article.parse()
+    except:
+        print(url) 
+
+    
     title = article.title
     if keywords or summary:
-        article.nlp()
-        if keywords:
-            keywords = article.keywords
-        if summary:
-            summary = article.summary
-            
-
+        try:
+            article.nlp()
+            if keywords:
+                keywords = article.keywords
+            if summary:
+                summary = article.summary
+        except :
+            print('NEwspaper error with nlp() call')
+        
     if top_img_src:
         top_img_src = article.top_image
    
@@ -80,12 +88,14 @@ if __name__ == '__main__':
         title, keywords, summary, top_img_src = output
         print('title', title)
         print('keywords', keywords)
-        print('summary', summary.encode('utf-8'))
+        if type(summary) is not bool:
+            print('summary', summary.encode('utf-8'))
         print('top_img_src', top_img_src)
     else:
         #'threshold':0.1,
-        options = { 'tags':['tree','window','face','lips', 'sky']}
-        output = summarise_img(url, options)
+        # options = {'tags':[]}
+        # options = { 'tags':['tree','window','face','lips', 'sky']}
+        output = summarise_img(url)
         print(output.result)
 
     

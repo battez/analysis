@@ -52,7 +52,11 @@ def resolve_redirect(url):
     '''
     import requests
     # verify can be set to False for more laxity but only if needed. And Insecure!
-    req = requests.head(url, allow_redirects=True, verify=True) 
+    try:
+        req = requests.head(url, allow_redirects=True, verify=True) 
+
+    except Exception:
+        return False
     
     return req.url
 
@@ -95,116 +99,172 @@ def summarise_links(dbc):
     import summarise
     
     # get all tweets with url entities
-    query = {'entities.urls.0.expanded_url':{"$exists":True}}
-    results = dbc.find(query).limit(1)
+    query = {'entities.urls.0.expanded_url':{"$exists":True}, 'url':{'$exists':False}}
+    results = dbc.find(query)
    
     for doc in results[:]:
         
         # returns: title, keywords, summary, top_img_src
         resolved_url = resolve_redirect(doc['entities']['urls'][0]['expanded_url'])
-        
+        if resolved_url == False:
+            print('redirection problem: ', doc['entities']['urls'][0]['expanded_url'])
+            continue
         try:
             summary = summarise.summarise_one(resolved_url, \
-           T rue, True, True, False)
+            True, True, True, False)
 
         except Exception as e:
             print(e)
             continue
     
         # save the results back to that tweet
-        dbc.update({'_id':doc['_id']}, {\
-        '$push':{'url.keywords': {'$each':summary[1]}},\
-        '$set':{'url.title':summary[0],'url.summary':summary[2]} })
-
-summarise_links(jlpb.get_dbc('Twitter', 'stream2flood_all'))
-
-from time import sleep
-sleep(1)
-exit('completed summaries')
-
-# what is the feature ? record: nonnormalised; trigrams and bigrams joined
-params = [('original','text'), ('txt','normalised'), ('txt','parsed')]
-
-# params = [('txt','bigrams')]
-for param in params:
-
-    ## TRAINING SET -------------
-    train = []
-    results = dbc.find()
-    for doc in results[:]:
-        # NB or e.g.: [ ([], 'class') , ]
-        if(param[1] not in ['bigrams','trigrams']):
-            train.append( (doc[param[0]][param[1]], str(doc['class'])) )
-        else: 
-            # join the ngrams together so we can use them
-            ngrams = join_ngrams(doc[param[0]][param[1]])
-            train.append( (ngrams, str(doc['class'])) )
-
-
-        
-    ## TEST SET -----------------
-    test = []
-    results = dbtest_set.find({'class':{'$ne':1}})  # {'class':{'$eq':1}}
-    for doc in results:
-        if(param[1] not in ['bigrams','trigrams']):
-            test.append( (doc[param[0]][param[1]], str(doc['class'])) )
+        if type(summary[1]) is bool or not summary[1]:
+            continue
         else:
-            # join the ngrams together so we can use them
-            ngrams = join_ngrams(doc[param[0]][param[1]])
-            test.append( (ngrams, str(doc['class'])) )
+            dbc.update({'_id':doc['_id']}, {\
+            '$push':{'url.keywords': {'$each':summary[1]}},\
+            '$set':{'url.title':summary[0],'url.summary':summary[2]} })
+
+def summarise_images(dbc, options={'threshold':0.15} ):
+    '''
+    Populate a mongo collection with image summaries for 
+    its tweets' URL image entities.
+
+    '''
+    import summarise
+    
+    # get all tweets with url entities
+    query = {'entities.media.0.media_url':{'$exists':True}, 'img':{'$exists':False}}
+    results = dbc.find(query)
+   
+    for doc in results[:]:
+        
+        # returns: title, keywords, summary, top_img_src
+        resolved_url = resolve_redirect(doc['entities']['media'][0]['media_url'])
+        print('debug', doc['entities']['media'][0]['media_url'])
+
+        if resolved_url == False:
+            print('redirection problem: ', doc['entities']['media'][0]['media_url'])
+            continue
+        try:
+            output = summarise.summarise_img(resolved_url, options)
+            summary = output.result
+
+        except Exception as e:
+            print(e)
+            continue
+    
+        # save the results back to that tweet
+        if not summary or ('general' not in summary):
+            print('no web service classified image data in response')
+            continue
+        else:
+            dbc.update({'_id':doc['_id']}, {\
+            '$set':{'img.keywords':summary['general']} })
 
 
-    cl = DecisionTreeClassifier(train)
-    type = 'DecisionTree'
-    # cl = NaiveBayesClassifier(train)
-    # type = 'NaiveBayes'
+if __name__ == '__main__':   
+    '''
+    Run various summaries and then do a classification on twitter data.
+    Uncomment below for URL extraction of summary on MongodDB
+    collection
+    '''
+    # summarise_links(jlpb.get_dbc('Twitter', 'testset_a'))
 
-    # wraps NLTK simply: return nltk.classify.accuracy(self.classifier, test_features) 
-    acc = cl.accuracy(test) * 100
-    print('Classifier Type      | ', type, ' with ', '.'.join(param))
-    print('Accuracy, train/test | ', '=',  str(acc), '% ,', len(train), '/', len(test))
-    #cl.show_informative_features(30)
-    print ('\n')
-    print ('\n')
+    # image summaries - using a web service
+    # options -- set threshold at 0.35
+    # we only want the 'general' to be stored 
+    # store just the keywords 
 
+    summarise_images(jlpb.get_dbc('Twitter', 'stream2flood_all'))
 
-# item = item.decode('ascii', errors="replace")
-exit('')
-## use the blob method as it is more convenient
-# unicode issues?
-blob = TextBlob(item)
-for np in blob.noun_phrases:
-    print (np)
+    from time import sleep
+    sleep(1)
+    exit('completed summaries')
 
+    # what is the feature ? record: nonnormalised; trigrams and bigrams joined
+    params = [('original','text'), ('txt','normalised'), ('txt','parsed')]
 
-cl.accuracy(test)
+    # params = [('txt','bigrams')]
+    for param in params:
 
-# test a new item  usage:
-newitem = 'dsdsjdlaskdjkl'
-cl.classify(newitem)
-
-# top five contriobuting feats
-cl.show_informative_features(5) 
-
-# get the label probability distribution with the prob_classify(text) method.
-prob_dist = cl.prob_classify(newitem)
-prob_dist.max()
-relevant = round(prob_dist.prob("pos"), 2)
-irrelevant = round(prob_dist.prob("neg"), 2)
-## 
-# method B - train with unigrams
-#
-cl.update(new_train) # can call it like this
-accuracy = cl.accuracy(test + new_test)
+        ## TRAINING SET -------------
+        train = []
+        results = dbc.find()
+        for doc in results[:]:
+            # NB or e.g.: [ ([], 'class') , ]
+            if(param[1] not in ['bigrams','trigrams']):
+                train.append( (doc[param[0]][param[1]], str(doc['class'])) )
+            else: 
+                # join the ngrams together so we can use them
+                ngrams = join_ngrams(doc[param[0]][param[1]])
+                train.append( (ngrams, str(doc['class'])) )
 
 
-### can pass a custom feature-extractor function to the clasifier
-## maybe try with one that removes key hashtag terms and see if it improves or not
-# A feature extractor is simply a function with document (the text to extract features from)
-# as the first argument.
-# The function may include a second argument, train_set (the training dataset), if necessary.
-#
-#
+            
+        ## TEST SET -----------------
+        test = []
+        results = dbtest_set.find({'class':{'$ne':1}})  # {'class':{'$eq':1}}
+        for doc in results:
+            if(param[1] not in ['bigrams','trigrams']):
+                test.append( (doc[param[0]][param[1]], str(doc['class'])) )
+            else:
+                # join the ngrams together so we can use them
+                ngrams = join_ngrams(doc[param[0]][param[1]])
+                test.append( (ngrams, str(doc['class'])) )
 
 
-# can try Noun Phrase extraction
+        cl = DecisionTreeClassifier(train)
+        type = 'DecisionTree'
+        # cl = NaiveBayesClassifier(train)
+        # type = 'NaiveBayes'
+
+        # wraps NLTK simply: return nltk.classify.accuracy(self.classifier, test_features) 
+        acc = cl.accuracy(test) * 100
+        print('Classifier Type      | ', type, ' with ', '.'.join(param))
+        print('Accuracy, train/test | ', '=',  str(acc), '% ,', len(train), '/', len(test))
+        #cl.show_informative_features(30)
+        print ('\n')
+        print ('\n')
+
+
+    # item = item.decode('ascii', errors="replace")
+    exit('')
+    ## use the blob method as it is more convenient
+    # unicode issues?
+    blob = TextBlob(item)
+    for np in blob.noun_phrases:
+        print (np)
+
+
+    cl.accuracy(test)
+
+    # test a new item  usage:
+    newitem = 'dsdsjdlaskdjkl'
+    cl.classify(newitem)
+
+    # top five contriobuting feats
+    cl.show_informative_features(5) 
+
+    # get the label probability distribution with the prob_classify(text) method.
+    prob_dist = cl.prob_classify(newitem)
+    prob_dist.max()
+    relevant = round(prob_dist.prob("pos"), 2)
+    irrelevant = round(prob_dist.prob("neg"), 2)
+    ## 
+    # method B - train with unigrams
+    #
+    cl.update(new_train) # can call it like this
+    accuracy = cl.accuracy(test + new_test)
+
+
+    ### can pass a custom feature-extractor function to the clasifier
+    ## maybe try with one that removes key hashtag terms and see if it improves or not
+    # A feature extractor is simply a function with document (the text to extract features from)
+    # as the first argument.
+    # The function may include a second argument, train_set (the training dataset), if necessary.
+    #
+    #
+
+
+    # can try Noun Phrase extraction
