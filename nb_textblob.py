@@ -124,43 +124,78 @@ def summarise_links(dbc):
             dbc.update({'_id':doc['_id']}, {\
             '$push':{'url.keywords': {'$each':summary[1]}},\
             '$set':{'url.title':summary[0],'url.summary':summary[2]} })
+            
 
-def summarise_images(dbc, options={'threshold':0.15} ):
+def summarise_images(dbc, options={'threshold':0.15}, watson=False ):
     '''
     Populate a mongo collection with image summaries for 
     its tweets' URL image entities.
 
     '''
     import summarise
+    count = 0 # keep track of how many records we update
+
+    img_key = 'img'
+    if watson:
+        img_key = 'img_watson'
+
+    # get all tweets with url entities, but not had this img classing done before:
+    query = {'entities.media.0.media_url':{'$exists':True}, img_key:{'$exists':False}}
+    results = dbc.find(query, no_cursor_timeout=True)
     
-    # get all tweets with url entities
-    query = {'entities.media.0.media_url':{'$exists':True}, 'img':{'$exists':False}}
-    results = dbc.find(query)
-   
-    for doc in results[:]:
+    for doc in results:
         
         # returns: title, keywords, summary, top_img_src
         resolved_url = resolve_redirect(doc['entities']['media'][0]['media_url'])
-        print('debug', doc['entities']['media'][0]['media_url'])
+        print('trying url...', doc['entities']['media'][0]['media_url'])
 
         if resolved_url == False:
             print('redirection problem: ', doc['entities']['media'][0]['media_url'])
             continue
-        try:
-            output = summarise.summarise_img(resolved_url, options)
-            summary = output.result
 
-        except Exception as e:
-            print(e)
-            continue
-    
-        # save the results back to that tweet
-        if not summary or ('general' not in summary):
-            print('no web service classified image data in response')
-            continue
+        data = {}
+
+        # which method to use:
+        if not watson:
+            try:
+                output = summarise.summarise_img(resolved_url, options)
+                summary = output.result
+
+            except Exception as e:
+                print('summary failed:', e)
+                continue
+        
+            # save the results back to that tweet
+            if not summary or ('general' not in summary):
+                print('no web service classified image data in response')
+                continue
+            else:
+                data = {img_key + '.keywords': summary['general']}
+               
         else:
-            dbc.update({'_id':doc['_id']}, {\
-            '$set':{'img.keywords':summary['general']} })
+            try:
+                output = summarise.summarise_watson_img(resolved_url)
+                summary = output['images'][0]
+
+
+            except Exception as e:
+                print('summary failed:', e)
+                continue
+        
+            # save the results back to that tweet
+            print('summary', summary)
+            if 'error' in summary:
+                print('no web service classified image data in response')
+                continue
+            else:
+                data = {img_key: summary['classifiers'][0]['classes']}
+        
+        # if we made it this far, update the db record.
+        dbc.update({'_id':doc['_id']}, {'$set':data })
+        count += 1
+
+    del results
+    return count
 
 
 if __name__ == '__main__':   
@@ -175,8 +210,13 @@ if __name__ == '__main__':
     # options -- set threshold at 0.35
     # we only want the 'general' to be stored 
     # store just the keywords 
-
-    summarise_images(jlpb.get_dbc('Twitter', 'stream2flood_all'))
+    coll = 'stream2_storm_all'
+    print('running Algo summarising')
+    count = summarise_images(jlpb.get_dbc('Twitter', coll), watson=False)
+    print(count, 'updates')
+    print('running Watson summarising')
+    count = summarise_images(jlpb.get_dbc('Twitter', coll), watson=True)
+    print(count, 'updates')
 
     from time import sleep
     sleep(1)
