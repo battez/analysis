@@ -114,7 +114,7 @@ def summarise_links(dbc):
             True, True, True, False)
 
         except Exception as e:
-            print(e)
+            print('link summarise had error: ', e)
             continue
     
         # save the results back to that tweet
@@ -124,13 +124,52 @@ def summarise_links(dbc):
             dbc.update({'_id':doc['_id']}, {\
             '$push':{'url.keywords': {'$each':summary[1]}},\
             '$set':{'url.title':summary[0],'url.summary':summary[2]} })
+
+def summarise_instagram(dbc):
+    '''
+    Populate a mongo collection with image summaries for 
+    its tweets' Instagram re-posts .
+    these can be found with a query in mongoDB:
+    {'entities.urls':{$ne:[]}, 'entities.urls.0.display_url':/^instagram.com/}
+
+    We first get the URLs, then get the top image from that URL using newspaper.
+    then we use this to get the image. 
+    '''
+    import summarise
+    import re
+
+    # get all tweets with instagram url 
+    regex = re.compile('^instagram.com')
+    query = {'img':{'$exists':False}, 'entities.urls.0.display_url':{'$regex':regex}}
+    results = dbc.find(query)
+    
+    for doc in results:
+        
+        # returns: title, keywords, summary, top_img_src
+        resolved_url = doc['entities']['urls'][0]['expanded_url']
+        
+        try:
+            summary = summarise.get_top_img(resolved_url)
+        except Exception as e:
+            print('link summarise had error: ', e)
+            continue
+
+        print(summary)
+        
+        # save the results back to that tweet
+        if not summary:
+            continue
             
+        else:
+            # have the URL of img, so now classify it:
+
+            pass
+
 
 def summarise_images(dbc, options={'threshold':0.15}, watson=False ):
     '''
     Populate a mongo collection with image summaries for 
-    its tweets' URL image entities.
-
+    its tweets' media_url image entities.
     '''
     import summarise
     count = 0 # keep track of how many records we update
@@ -211,6 +250,8 @@ if __name__ == '__main__':
     # we only want the 'general' to be stored 
     # store just the keywords 
     coll = 'stream2_storm_all'
+    summarise_instagram(jlpb.get_dbc('Twitter', coll))
+    exit()
     print('running Algo summarising')
     count = summarise_images(jlpb.get_dbc('Twitter', coll), watson=False)
     print(count, 'updates')

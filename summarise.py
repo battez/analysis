@@ -10,12 +10,35 @@ else:
     sys.path.insert(0, 'U:\Documents\Project\demoapptwitter')
 import config
 
+def get_top_img(url):
+    '''
+    Get just the top img from a URL 
+    '''
+    article = Article(url)
+    
+    # configuration for Newspaper to minimize processing time
+    configure = Config()
+    
+    try:
+        article.download()
+
+        article.parse()
+
+    except:
+        print(url)
+        return False
+        
+    
+    return article.top_image
+   
+
 
 def summarise_one(url, title=True, keywords=True, summary=False, top_img_src=False):
     '''
     Get url and return summary 
     '''
     article = Article(url)
+
     # configuration for Newspaper to minimize processing time
     configure = Config()
     configure.fetch_images = False
