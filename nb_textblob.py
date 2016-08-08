@@ -140,30 +140,72 @@ def summarise_instagram(dbc):
 
     # get all tweets with instagram url 
     regex = re.compile('^instagram.com')
-    query = {'img':{'$exists':False}, 'entities.urls.0.display_url':{'$regex':regex}}
+    query = {'img':{'$exists':False}, 'img_watson':{'$exists':False},\
+     'entities.urls.0.display_url':{'$regex':regex}}
     results = dbc.find(query)
-    
+
     for doc in results:
         
         # returns: title, keywords, summary, top_img_src
         resolved_url = doc['entities']['urls'][0]['expanded_url']
         
         try:
-            summary = summarise.get_top_img(resolved_url)
+            url = summarise.get_top_img(resolved_url)
         except Exception as e:
             print('link summarise had error: ', e)
-            continue
 
-        print(summary)
+        print(url)
         
         # save the results back to that tweet
-        if not summary:
+        if not url:
             continue
-            
+
         else:
             # have the URL of img, so now classify it:
+            data = summarise_algorithmia(url)
+            if data:
+                dbc.update({'_id':doc['_id']}, {'$set':data })
+        
+            data = summarise_watson(url)
+            if data:
+                dbc.update({'_id':doc['_id']}, {'$set':data })
 
-            pass
+    del results
+
+
+def summarise_algorithmia(url, options={'threshold':0.15}, img_key='img'):
+    import summarise
+    data = {}
+    try:
+        output = summarise.summarise_img(url, options)
+        summary = output.result
+        if 'general' not in summary:
+            print('no web service classified image data in response')
+        else:
+            data = {img_key + '.keywords': summary['general']}
+
+    except Exception as e:
+        print('summary failed:', e)
+
+    return data
+
+
+def summarise_watson(url, img_key='img_watson'):
+    import summarise
+    data = {}
+    try:
+        output = summarise.summarise_watson_img(url)
+        summary = output['images'][0]
+        # save the results back to that tweet
+        if 'error' in summary:
+            print('no web service classified image data in response')
+        else:
+            data = {img_key: summary['classifiers'][0]['classes']}
+
+    except Exception as e:
+        print('summary failed:', e)
+
+    return data 
 
 
 def summarise_images(dbc, options={'threshold':0.15}, watson=False ):
@@ -222,7 +264,7 @@ def summarise_images(dbc, options={'threshold':0.15}, watson=False ):
                 continue
         
             # save the results back to that tweet
-            print('summary', summary)
+            
             if 'error' in summary:
                 print('no web service classified image data in response')
                 continue
@@ -249,9 +291,10 @@ if __name__ == '__main__':
     # options -- set threshold at 0.35
     # we only want the 'general' to be stored 
     # store just the keywords 
-    coll = 'stream2_storm_all'
+    coll = 'sample_stream2_rain'
     summarise_instagram(jlpb.get_dbc('Twitter', coll))
-    exit()
+    print('done insta')
+    exit('')
     print('running Algo summarising')
     count = summarise_images(jlpb.get_dbc('Twitter', coll), watson=False)
     print(count, 'updates')
