@@ -118,6 +118,14 @@ def summarise_img(src, options=False):
     return result
     
 
+def get_vec_img():
+    # keywords = db.rawtweets.find_one({'img':{'$exists':True}}, {'img.keywords':1, '_id':0})
+
+    # retrieves in this format: 
+    # { "img" : { "keywords" : [ { "photo" : 0.8888001441955565 }, { "formal" : 0.651865303516388 }, 
+    #keywords
+    pass
+
 # for testing use:
 if __name__ == '__main__':    
     url = input('Enter URL: ')

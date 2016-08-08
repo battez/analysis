@@ -121,9 +121,6 @@ def populate_db(directory=None):
     conn.close()
 
 
-
-
-
 def lookup(values, district_search=True, limit=3, start_from=False, to_end=True):
     ''' 
     very hacky function to lookup two cols in a postgres db with regex
@@ -205,7 +202,7 @@ def lookup(values, district_search=True, limit=3, start_from=False, to_end=True)
 if __name__ == '__main__':
     
     ''' 
-    NB call populate_db() (see fun above) to run populate load of CSV to db.
+    NB call populate_db() (see func above) to run populate load of CSV to db.
 
     This looks up candidate strings for location(s) in a postgres db of UK locations
     and placenames. name1, district can be text searched. Type can also (see db)
@@ -244,14 +241,7 @@ if __name__ == '__main__':
             "ccrptjhsjw"
         ], 
         "bigrams" : [
-            [
-                "flood", 
-                "alert"
-            ], 
-            [
-                "alert", 
-                "test"
-            ], 
+          
             [
                 "test", 
                 "upper"
@@ -275,35 +265,7 @@ if __name__ == '__main__':
             [
                 "llangolle", 
                 "pic"
-            ], 
-            [
-                "pic", 
-                "twitter"
-            ], 
-            [
-                "twitter", 
-                "com"
-            ], 
-            [
-                "com", 
-                "ccrptjhsjw"
-            ], 
-            [
-                "flood", 
-                "alert"
-            ], 
-            [
-                "alert", 
-                "test"
-            ], 
-            [
-                "test", 
-                "upper"
-            ], 
-            [
-                "upper", 
-                "dee"
-            ], 
+            ],          
             [
                 "dee", 
                 "valley"
@@ -319,23 +281,11 @@ if __name__ == '__main__':
             [
                 "llangolle", 
                 "pic"
-            ], 
-            [
-                "pic", 
-                "twitter"
-            ], 
-            [
-                "twitter", 
-                "com"
-            ], 
-            [
-                "com", 
-                "ccrptjhsjw"
             ]
         ] 
     }
     bigrams = [' '.join(elm) for elm in test2['bigrams']]
-    t = ['Birnam Crescent']
-    match = lookup(t , limit=1)
+    t = ['St Vincent Street']
+    match = lookup(bigrams , limit=1)
     print('match: ', match)
 
