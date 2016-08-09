@@ -73,7 +73,7 @@ def summarise_links(dbc):
     '''    
     # get all tweets with url entities
     query = {'original.entities.urls.0.expanded_url':{"$exists":True}, 'url':{'$exists':False}}
-    results = dbc.find(query, no_cursor_timeout=True )
+    results = dbc.find(query, no_cursor_timeout=True ).sort([("_id", pymongo.DESCENDING)])
    
     for doc in results:
         
@@ -249,6 +249,76 @@ def summarise_images(dbc, options={'threshold':0.15}, watson=False ):
     return count
 
 
+def check_locations(dbc, region='UK'):
+    '''
+    batch search a collection for locations in its tweets'
+    parsed text tokens
+    '''
+    query = {'txt':{'$exists':True}, 'has_location':{'$exists':False}}
+    results = dbc.find(query, no_cursor_timeout=True)
+    blacklist = []
+    with open('uk_location_word_list.txt') as file:
+        blacklist = file.read().splitlines()
+    
+    
+    for doc in results:
+
+        check_for_location(doc, region, blacklist)
+
+        # todo: update a db field to show this has a location or not
+
+    print('locations search complete')
+    del results
+        
+
+def check_for_location(tweet, region, blacklist):
+    '''
+    Pass a tweet and check a lookup db for any strings that match a UK location
+
+    # TODO: annotate tweets with features:
+        # get a tweet
+
+        # lookup a keyword in hashtags for a location
+        # {'entities.hashtags.text':{$exists:true}} + {'entities.hashtags.text':1, 'text':1} project
+        # lookup a keyword in tweet (normalised) tokenised text for a location
+    '''
+    import loc_lookup
+    # basic logging for this task.
+    import logging
+    FORMAT = "%(asctime)-15s %(message)s"
+    logging.basicConfig(filename="log_locs.txt", \
+        level=logging.INFO, format=FORMAT)
+
+
+    unigrams = tweet['txt']['parsed']
+    # TODO: load blacklist for this region
+
+
+    # fix should search bigrams first as more reliable
+    unigrams_cleaned = [token for token in unigrams if (token.lower()) not in blacklist]
+    try:
+        result = loc_lookup.lookup(unigrams_cleaned)
+        if not result:
+            bigrams = [' '.join(elm) for elm in tweet['txt']['bigrams']]
+            result = loc_lookup.lookup(bigrams)[0]
+            
+        
+        print(result[0])
+
+
+        # capture found lcoations so we can screen for false positives etc
+        if len(result) > 1:
+            found = ' '.join(result[1])
+            if len(found) > 1:
+                logging.info(str(tweet['_id']) + ': ' + found)
+
+    except Exception as e:
+        logging.error('lookup failed: ' + e)
+        return 0
+
+    
+    return result[0]
+
 if __name__ == '__main__':   
     '''
     Run various summaries to gather features and then do a classification on twitter data.
@@ -259,12 +329,14 @@ if __name__ == '__main__':
     # image summaries - using a web service
     ##
 
-    coll = 'rawtweets'
+    coll = 'sample_a200'
     # summarise_instagram(jlpb.get_dbc('Twitter', coll))
     # print('done insta')
     # Uncomment below for URL extraction of summary on MongodDB
-    summarise_links(jlpb.get_dbc('Twitter', coll))
-    exit('')
+    # summarise_links(jlpb.get_dbc('Twitter', coll))
+    check_locations(jlpb.get_dbc('Twitter', coll))
+
+    exit('finsihed links summarising')
     print('running Algo summarising')
     count = summarise_images(jlpb.get_dbc('Twitter', coll), watson=False)
     print(count, 'updates')
@@ -287,7 +359,7 @@ if __name__ == '__main__':
         ## TRAINING SET -------------
         train = []
         results = dbc.find()
-        for doc in results[:]:
+        for doc in results:
             # NB or e.g.: [ ([], 'class') , ]
             if(param[1] not in ['bigrams','trigrams']):
                 train.append( (doc[param[0]][param[1]], str(doc['class'])) )

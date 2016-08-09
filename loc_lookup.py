@@ -20,9 +20,6 @@ import config
 import psycopg2
 
 
-
-
-
 def process_row(row, conn=False):
     '''
     Process a row of a CSV, saving to database
@@ -121,9 +118,9 @@ def populate_db(directory=None):
     conn.close()
 
 
-def lookup(values, district_search=True, limit=3, start_from=False, to_end=True):
+def lookup(values, district_search=True, limit=1, start_from=True, to_end=True):
     ''' 
-    very hacky function to lookup two cols in a postgres db with regex
+    crude function to lookup two cols in a postgres db with regex
     of passed in list of strings
     '''
     # REMOTE connection
@@ -140,7 +137,7 @@ def lookup(values, district_search=True, limit=3, start_from=False, to_end=True)
 
         # regex -
         # select * from table where value ~* 'foo|bar|baz';
-        query = "select * from locs where locs.name1 ~* "
+        query = "select name1, district from locs where locs.name1 ~* "
         alt_column = "locs.district"
 
         # precise regex matching or not:
@@ -161,16 +158,17 @@ def lookup(values, district_search=True, limit=3, start_from=False, to_end=True)
             
         query += ' LIMIT ' + str(limit)
         
-        print(query)
-
+     
+        ''' forms query like this:
+        select name1,district from locs where 
+        locs.name1 ~* '^(relief|government|little|set|billions|flood|relief|use|money)$' 
+        LIMIT 1
+        '''
         cursor.execute(query)
         rows = cursor.fetchall()
         
-        # debug:
         location = ''
-        for row in rows:
-            print (row)
-        print(len(rows))  
+        
         if cursor.rowcount > 0:
             # we got a match so lets return the call
             location = rows[0] # debugging
@@ -180,8 +178,6 @@ def lookup(values, district_search=True, limit=3, start_from=False, to_end=True)
             # check other table column
             cursor.execute(query.replace('locs.name1', alt_column))
             rows = cursor.fetchall()
-            for row in rows:
-                print (row)
             
             if cursor.rowcount > 0:
                 location = rows[0] # debugging 
@@ -208,20 +204,6 @@ if __name__ == '__main__':
     and placenames. name1, district can be text searched. Type can also (see db)
     '''
 
-    # probably needs to go in another file where tweets are, test here for now
-    # for each tweet
-
-        # TODO: annotate tweets with features:
-        # get a tweet
-
-        # lookup a keyword in hashtags for a location
-        # {'entities.hashtags.text':{$exists:true}} + {'entities.hashtags.text':1, 'text':1} project
-        # lookup a keyword in tweet (normalised) tokenised text for a location
-
-    # check a value where = lookup limit 1 
-  
-
-    ## Todo: - check the district also
     candidates = ['Burragarth', 'Birnam Crescent', 'WiDnes','taunton','Chess','wibble','nuneaton','cheshire','lanark','East kilbride'\
     ,'South Lanarkshire']
     test = ['Thunder', 'UKStorm','Ham', 'London'] # London issue!
@@ -284,8 +266,9 @@ if __name__ == '__main__':
             ]
         ] 
     }
+
     bigrams = [' '.join(elm) for elm in test2['bigrams']]
-    t = ['St Vincent Street']
-    match = lookup(bigrams , limit=1)
-    print('match: ', match)
+    t = ['Sxt Vincent Street']
+    match = lookup(t , limit=1)
+    print('match: ', match[0])
 

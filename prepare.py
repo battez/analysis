@@ -42,7 +42,7 @@ def strip_mentions(text):
     '''
     Remove @mentions i.e. usernames from tweet text
     '''
-    entity_prefixes = ['@'] # can use for hastags too, if needed
+    entity_prefixes = ['@'] # can use for hashtags too, if needed
     for separator in  string.punctuation:
         if separator not in entity_prefixes :
             text = text.replace(separator,' ')
@@ -152,6 +152,7 @@ def load_tokens(bigrams='data-bigram.csv', unigrams='data-unigram.csv'):
 
     return invalidate_phrases, invalidate_terms
 
+
 def retweet_stats(dbc):
     ''' 
     Return num. retweets and percentage
@@ -174,8 +175,11 @@ def reply_stats(dbc):
 
 
 def extract_tweet_entities(tweets):
-    # ref: https://dev.twitter.com/docs/tweet-entities 
-
+    '''
+    ref: https://dev.twitter.com/docs/tweet-entities 
+    CREDIT: extended and adapted from MAtthew Russell, O'Reilly 'Mining The Social Web' ch.9
+    https://github.com/ptwobrussell/Mining-the-Social-Web-2nd-Edition
+    '''
     if len(tweets) == 0:
         return [], [], [], [], []
     
@@ -224,6 +228,7 @@ def get_common_entities(tweets, entity_threshold=3):
     # Compute frequencies
     return [ (key,val) for (key,val) in common if val >= entity_threshold ]
 
+
 def summarise_entities(dbc, query=[{'$match':{'original':{'$exists':True}}} \
     , {'$project':{'entities':'$original.entities'}}], top=100):
     '''
@@ -265,10 +270,11 @@ def summarise_entities(dbc, query=[{'$match':{'original':{'$exists':True}}} \
         jlpb.uprint(pt)
         del count_all        
 
-# Both below: adapted from https://github.com/dandelany/tweetalyze/
+
 def screen_names_in_db(dbc):
     '''
     Returns a list of all distinct Twitter screen names in the database.
+    CREDIT: adapted from https://github.com/dandelany/tweetalyze/
     '''
 
     total = dbc.count()
@@ -282,6 +288,7 @@ def total_tweets(dbc, threshold=1):
     Prints the total number of tweets for each screen name in the database.
     [['name', '# of tweets'], ['Dee_Marketing', 1], ['YounqFlexin_Dee', 1]]
     Can take a long time!
+    CREDIT: adapted from https://github.com/dandelany/tweetalyze/
     '''
     export_data = [['name', '# of tweets']]
     
@@ -307,15 +314,14 @@ if __name__ == '__main__':
     # for some output of results:
     from prettytable import PrettyTable
 
-
     # MongoDB data is from scraped tweets, so hashtag entities in original.entities
     if CURR_PLATFORM != 'linux':
-        dbc = jlpb.get_dbc('Twitter', 'rawtweets')
+        dbc = jlpb.get_dbc('Twitter', 'sample_britishsummer990')
     else:
         dbc = jlpb.get_dbc('local', 'rawtweets_clean')
 
     # output some info on the entities:
-    summarise_entities(dbc)
+    # summarise_entities(dbc)
     total_num = dbc.count()
 
     # UNCOMMENT BELOW PRINT()s TO SHOW USEFUL SUMMARY STATS:
@@ -332,7 +338,7 @@ if __name__ == '__main__':
     count_all = Counter()
     count_all_uni = Counter()
     count_all_tri = Counter()
-    num = 10 # how many to show
+    num = 50 # how many to show
 
     # Get the scraped tweets from mongodb, possibly only use English (?), 
     # that we could supplement from the API:
@@ -341,8 +347,11 @@ if __name__ == '__main__':
     # load in from CSV n-grams we will spot and then delete corresponding rows in database:
     invalidate_phrases, invalidate_terms = load_tokens()
 
+    # WARNING setting this to True will delete the tweet if it is seen as invalid!
+    delete_tweets = False
+
     # delete invalidated tweets and then update tweets in the database, with parsed text
-    for doc in results[:]:
+    for doc in results:
         
         if 'original' in doc:
             # use the original text as twitter provides this in most suitable format 
@@ -363,7 +372,7 @@ if __name__ == '__main__':
         count_all_tri.update(tri_grams)
         count_all_uni.update(t_tweet)
 
-                # count_all_hashtags.update()
+        # count_all_hashtags.update()
         # we check that this tweets bigrams are not in the list of bad bigrams:
         invalidate = False
         for invalid in invalidate_phrases:
@@ -380,11 +389,14 @@ if __name__ == '__main__':
                 invalidate = True
                 break
 
-        if invalidate:
+        if invalidate and delete_tweets:
             # delete  this document
             dbc.remove({'_id':doc['_id']})
             continue
-
+        
+        elif invalidate:
+            continue
+        
         else:
             # comment out this line to run the updates below if necessary: 
             # continue
