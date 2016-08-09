@@ -3,7 +3,7 @@ Explore the flood stream set.
 '''
 # key stem word of flood in mongoDB: 1060 tweets from the
 # streamed data set. 
-# In this period a lot of flash flooding, especially in the populous south of England
+# In this period a lot of flash flooding, especially in the populous S. England
 # including floods in London and around on the Day of the EU referendum.
 # date ranges from 
 # 18h 20.06.2016 -- 17h 29.06.16
@@ -13,7 +13,8 @@ Explore the flood stream set.
 # 528/990 relevant have coordinates geospatial location.
 # 
 # TODO: Compare with Random sample of this set! 990? OR irrelevant labelled? 
-# Compare with winter relevant dataset also. Ask Andy if data analysis ok for thesis?
+# Compare with winter relevant dataset also. 
+# Ask Andy if data analysis ok for thesis?
 # 
 # for some output of results:
 
@@ -68,7 +69,7 @@ def print_common(freqs, num=None, print_to_file=False, suffix=''):
             [pt.add_row(kval) for kval in common]
             pt.align[key], pt.align['Count'] = 'l', 'r' # Set column alignment
 
-            # use a print wrapper to view this in case of strange non-unicode chars!
+            # use a print wrapper to view this in case of strange non-unicode!
             uprint(pt)
 
 
@@ -98,8 +99,10 @@ if __name__ == '__main__':
             # output the most recent category first
             if current_category != '':
                 print('printing', current_category)
-                print_common({'Unigram': count_all_uni, 'Bigram':count_all, 'Trigram':count_all_tri}, \
-                    None, True, "_".join(re.findall("[a-zA-Z]+", current_category)) )
+                print_common({'Unigram': count_all_uni, 'Bigram':count_all,\
+                    'Trigram':count_all_tri}, \
+                    None, True, "_".join(re.findall("[a-zA-Z]+",\
+                        current_category)) )
             
             # assign the new category to current
             current_category = doc['FLOOD_CATEGORY_DESC']
@@ -129,7 +132,8 @@ if __name__ == '__main__':
         '''
     
     # print out last category:
-    print_common({'Unigram': count_all_uni, 'Bigram':count_all, 'Trigram':count_all_tri}, \
+    print_common({'Unigram': count_all_uni, 'Bigram':count_all,\
+        'Trigram':count_all_tri}, \
      None, True, "_".join(re.findall("[a-zA-Z]+", current_category)) )
 
 
@@ -143,9 +147,11 @@ if __name__ == '__main__':
     # end analyse the CSV data.
     ##
 
-    # MongoDB data is from scraped tweets, so hashtag entities in original.entities
+    # MongoDB data is from scraped tweets,
+    # so hashtag entities in original.entities
     if prp.CURR_PLATFORM != 'linux':
-        #stream2flood_all, sample_stream2_990,sample_stream2_brexit,sample_stream2_rain,stream2_storm_all
+        #stream2flood_all, sample_stream2_990,sample_stream2_brexit,
+        #sample_stream2_rain,stream2_storm_all
         dbc = jlpb.get_dbc('Twitter', 'stream2flood_all') 
     else:
         dbc = jlpb.get_dbc('local', 'stream2flood_all')

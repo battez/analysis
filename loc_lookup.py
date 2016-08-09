@@ -26,10 +26,13 @@ def process_row(row, conn=False):
     '''
     # fixme: load these categories from database ideally
     valid = ['populatedPlace', 'transportNetwork']
-    local_types = sorted(['City', 'Hamlet', 'Village', 'Suburban Area', 'Town', 'Other Settlement', \
-    'Named Road', 'Section Of Named Road', 'Section Of Numbered Road', 'Numbered Road'])
-    countries = sorted(['Yorkshire and the Humber','London','North West','Wales','South West', \
-    'Eastern','West Midlands','East Midlands','North East','South East','Scotland'])
+    local_types = sorted(['City', 'Hamlet', 'Village',\
+     'Suburban Area', 'Town', 'Other Settlement', \
+    'Named Road', 'Section Of Named Road',\
+     'Section Of Numbered Road', 'Numbered Road'])
+    countries = sorted(['Yorkshire and the Humber','London','North West',\
+        'Wales','South West','Eastern','West Midlands','East Midlands',\
+        'North East','South East','Scotland'])
 
     if row[6] in valid:
         
@@ -40,11 +43,13 @@ def process_row(row, conn=False):
             values = [row[2], row[6], row[7], row[24], row[27]]
             values = list(map(clean_field, values))
 
-            fields = (values[0], valid.index(values[1]) + 1, local_types.index(values[2]) + 1,\
-             values[3], countries.index(values[4]) + 1) #tuple; add one for db index to match up
+            fields = (values[0], valid.index(values[1]) + 1,\
+                local_types.index(values[2]) + 1,\
+             values[3], countries.index(values[4]) + 1) # tuple
             
             cur.execute(\
-            'INSERT INTO locs (name1, category, local_type, district, country) VALUES (%s, %s, %s, %s, %s)'\
+            'INSERT INTO locs (name1, category, local_type, district, country)'\
+            +' VALUES (%s, %s, %s, %s, %s)'\
                 , fields)
 
             conn.commit()
@@ -69,7 +74,8 @@ def load_csv(conn, directory):
     import csv
 
     # Load in the CSVs of lookup data
-    # ensure we are in the right directory context, and then return to original at end. 
+    # ensure we are in the right directory context, 
+    # and then return to original at end. 
     previous_dir = os.getcwd()
     os.chdir(directory)
 
@@ -103,8 +109,12 @@ def populate_db(directory=None):
     if not directory:
         directory = r'C:\Users\johnbarker\Downloads'
     try:
-        conn = psycopg2.connect(database="uk_places", user=config.DBPOSTGRES['user'],\
-                password=config.DBPOSTGRES['password'], host="127.0.0.1", port="5432")
+        conn = psycopg2.connect(database="uk_places",\
+            user=config.DBPOSTGRES['user'],\
+            password=config.DBPOSTGRES['password'],\
+            host="127.0.0.1",\
+            port="5432")
+
     except psycopg2.OperationalError as e:
         print('Unable to connect!\n{0}').format(e)
         sys.exit(1)
@@ -127,7 +137,8 @@ def lookup(values, district_search=True, limit=1, start_from=True, to_end=True):
     conn = None
     try:
         conn = psycopg2.connect(database="uk_places", user=config.DBA['user'],\
-                password=config.DBA['password'], host=config.DBA['host'], port="5432")
+                password=config.DBA['password'],\
+                host=config.DBA['host'], port="5432")
         cursor = conn.cursor() 
         
         # BUILD SELECT QUERY
@@ -161,7 +172,8 @@ def lookup(values, district_search=True, limit=1, start_from=True, to_end=True):
      
         ''' forms query like this:
         select name1,district from locs where 
-        locs.name1 ~* '^(relief|government|little|set|billions|flood|relief|use|money)$' 
+        locs.name1 ~* 
+        '^(relief|government|little|set|billions|flood|relief|use|money)$' 
         LIMIT 1
         '''
         cursor.execute(query)
@@ -200,75 +212,14 @@ if __name__ == '__main__':
     ''' 
     NB call populate_db() (see func above) to run populate load of CSV to db.
 
-    This looks up candidate strings for location(s) in a postgres db of UK locations
-    and placenames. name1, district can be text searched. Type can also (see db)
+    This looks up candidate strings for location(s) in a postgres db 
+    of UK locations
+    and placenames. name1, district can be text searched. 
+    Type can also be (see db).
     '''
 
-    candidates = ['Burragarth', 'Birnam Crescent', 'WiDnes','taunton','Chess','wibble','nuneaton','cheshire','lanark','East kilbride'\
-    ,'South Lanarkshire']
-    test = ['Thunder', 'UKStorm','Ham', 'London'] # London issue!
-    test2 = {
-    "parsed" : [
-            "flood", 
-            "alert", 
-            "test", 
-            "upper", 
-            "dee", 
-            "valley", 
-            "llanuwchllyn", 
-            "llangolle", 
-            "pic", 
-            "twitter", 
-            "com", 
-            "ccrptjhsjw"
-        ], 
-        "bigrams" : [
-          
-            [
-                "test", 
-                "upper"
-            ], 
-            [
-                "upper", 
-                "dee"
-            ], 
-            [
-                "dee", 
-                "valley"
-            ], 
-            [
-                "valley", 
-                "llanuwchllyn"
-            ], 
-            [
-                "llanuwchllyn", 
-                "llangolle"
-            ], 
-            [
-                "llangolle", 
-                "pic"
-            ],          
-            [
-                "dee", 
-                "valley"
-            ], 
-            [
-                "valley", 
-                "llanuwchllyn"
-            ], 
-            [
-                "llanuwchllyn", 
-                "llangolle"
-            ], 
-            [
-                "llangolle", 
-                "pic"
-            ]
-        ] 
-    }
-
-    bigrams = [' '.join(elm) for elm in test2['bigrams']]
-    t = ['Sxt Vincent Street']
+    # testing:
+    t = ['St Vincent Street']
     match = lookup(t , limit=1)
     print('match: ', match[0])
 

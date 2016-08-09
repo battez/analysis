@@ -33,7 +33,8 @@ def get_top_img(url):
    
 
 
-def summarise_one(url, title=True, keywords=True, summary=False, top_img_src=False):
+def summarise_one(url, title=True, keywords=True, summary=False, \
+    top_img_src=False):
     '''
     Get url and return summary 
     '''
@@ -105,24 +106,16 @@ def summarise_img(src, options=False):
         
     result = algo.pipe(input)
 
-    '''
-    Returns something like:
-
-{'copyright': [{'real life': 0.5092955231666565}], 'character': [], 'general': [{'photo': 0.9757122993469236}, {'1girl': 0.788438677
-7877808}, {'solo': 0.6956651806831361}, {'lips': 0.35438942909240734}, {'face': 0.27816683053970337}], 'rating': [{'safe': 0.9757491
-946220398}, {'questionable': 0.02385559491813184}, {'explicit': 0.0013747639022767544}]}
-
-{'character': [], 'general': [{'no humans': 0.5748320221900941}, {'solo': 0.2691210508346558}, {'sky': 0.21563498675823217}, {'1girl
-': 0.19651243090629583}, {'cloud': 0.17825683951377871}, {'tree': 0.14194014668464663}, {'window': 0.1255052238702774}], 'rating': [
-    '''
     return result
     
 
 def get_vec_img():
-    # keywords = db.rawtweets.find_one({'img':{'$exists':True}}, {'img.keywords':1, '_id':0})
+    # keywords = db.rawtweets.find_one({'img':{'$exists':True}},
+    # {'img.keywords':1, '_id':0})
 
     # retrieves in this format: 
-    # { "img" : { "keywords" : [ { "photo" : 0.8888001441955565 }, { "formal" : 0.651865303516388 }, 
+    # { "img" : { "keywords" : [ { "photo" : 0.8888001441955565 }, 
+    # { "formal" : 0.651865303516388 }, 
     #keywords
     pass
 

@@ -30,7 +30,8 @@ def strip_links(text):
     '''
     Strip wide variety of URLs from a text
     '''
-    link_regex = re.compile('((https?):((//)|(\\\\))+([\w\d:#@%/;$()~_?\+-=\\\.&](#!)?)*)'\
+    link_regex = \
+    re.compile('((https?):((//)|(\\\\))+([\w\d:#@%/;$()~_?\+-=\\\.&](#!)?)*)'\
         , re.DOTALL)
     links = re.findall(link_regex, text)
     for link in links:
@@ -134,7 +135,7 @@ def tweet_features(tweet, split=False):
 
 def load_tokens(bigrams='data-bigram.csv', unigrams='data-unigram.csv'):
     '''
-    Load in bigrams and unigrams from spreadsheet, that we will prune dataset by.
+    Load in bigrams and unigrams from spreadsheet, that we will prune dataset by
     '''
     from csv import reader
     invalidate_phrases = list()
@@ -177,7 +178,8 @@ def reply_stats(dbc):
 def extract_tweet_entities(tweets):
     '''
     ref: https://dev.twitter.com/docs/tweet-entities 
-    CREDIT: extended and adapted from MAtthew Russell, O'Reilly 'Mining The Social Web' ch.9
+    CREDIT: extended and adapted from MAtthew Russell, 
+    O'Reilly 'Mining The Social Web' ch.9
     https://github.com/ptwobrussell/Mining-the-Social-Web-2nd-Edition
     '''
     if len(tweets) == 0:
@@ -185,19 +187,23 @@ def extract_tweet_entities(tweets):
     
     screen_names = [ user_mention['screen_name'] 
                          for tweet in tweets
-                            for user_mention in tweet['entities']['user_mentions'] ]
+                            for user_mention in \
+                            tweet['entities']['user_mentions'] ]
     
     hashtags = [ hashtag['text'] 
                      for tweet in tweets 
-                        for hashtag in tweet['entities']['hashtags'] ]
+                        for hashtag in \
+                        tweet['entities']['hashtags'] ]
 
     urls = [ url['expanded_url'] 
                      for tweet in tweets 
-                        for url in tweet['entities']['urls'] ]
+                        for url in \
+                        tweet['entities']['urls'] ]
     
     symbols = [ symbol['text']
                    for tweet in tweets
-                       for symbol in tweet['entities']['symbols'] ]
+                       for symbol in \
+                       tweet['entities']['symbols'] ]
     # In some circumstances (such as search results), the media entity
     # may not appear
     media = []
@@ -205,9 +211,9 @@ def extract_tweet_entities(tweets):
        
         if 'media' in tweet['entities']: 
             
-            media = media + [ media['display_url'] for media in tweet['entities']['media'] ]
-        else:
-            pass
+            media = media + [ media['display_url'] for media in \
+            tweet['entities']['media'] ]
+        
 
     return screen_names, hashtags, urls, media, symbols
 
@@ -238,7 +244,7 @@ def summarise_entities(dbc, query=[{'$match':{'original':{'$exists':True}}} \
     from tld import get_tld
 
     # Retrieve all the tweets from the database:
-    # NB adjust query param if required for a standard set of tweets in a database
+    # NB adjust query param if required for a standard set of tweets in a DB
     tweets = dbc.aggregate(query)
     entities = []
     for tweet in tweets:
@@ -253,8 +259,8 @@ def summarise_entities(dbc, query=[{'$match':{'original':{'$exists':True}}} \
     tlds = [get_tld(term) for term in urls]
 
     # freqs sets the entities to output:
-    freqs={'@mentioned users':mentioned, 'hashtags':hashtags, 'media_urls':media, \
-    'domains':tlds, 'links':urls}
+    freqs={'@mentioned users':mentioned, 'hashtags':hashtags,\
+    'media_urls':media, 'domains':tlds, 'links':urls}
     
     for kind, entity in freqs.items():
         count_all = Counter()
@@ -314,7 +320,8 @@ if __name__ == '__main__':
     # for some output of results:
     from prettytable import PrettyTable
 
-    # MongoDB data is from scraped tweets, so hashtag entities in original.entities
+    # MongoDB data is from scraped tweets,
+    # so hashtag entities in original.entities
     if CURR_PLATFORM != 'linux':
         dbc = jlpb.get_dbc('Twitter', 'sample_britishsummer990')
     else:
@@ -344,17 +351,21 @@ if __name__ == '__main__':
     # that we could supplement from the API:
     results = dbc.find() # dbc.find({"original":{'$exists':True}}).count()
 
-    # load in from CSV n-grams we will spot and then delete corresponding rows in database:
+    # load in from CSV n-grams we spot,
+    # and then delete corresponding rows in database:
     invalidate_phrases, invalidate_terms = load_tokens()
 
-    # WARNING setting this to True will delete the tweet if it is seen as invalid!
+    # WARNING setting this to True will delete the tweet if it is seen as 
+    # invalid!
     delete_tweets = False
 
-    # delete invalidated tweets and then update tweets in the database, with parsed text
+    # delete invalidated tweets and then update tweets in the database, 
+    # with parsed text
     for doc in results:
         
         if 'original' in doc:
-            # use the original text as twitter provides this in most suitable format 
+            # use the original text as twitter provides this in most 
+            # suitable format 
             # (as compared to the rendered text of the scraped tweet)
             txt = doc['original']['text']
         else:
@@ -401,7 +412,7 @@ if __name__ == '__main__':
             # comment out this line to run the updates below if necessary: 
             # continue
 
-            # insert as a nested field of the raw tweet we already have for this ID
+            # insert as nested field of the raw tweet we have for this ID
             dbc.update({'_id':doc['_id']}, {\
                 '$push':{'txt.trigrams': {'$each':tri_grams},\
                 'txt.bigrams': {'$each':phrases}},\

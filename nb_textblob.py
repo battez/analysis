@@ -52,7 +52,7 @@ def resolve_redirect(url):
     works better than below fn!
     '''
     import requests
-    # verify can be set to False for more laxity but only if needed. And Insecure!
+    # verify can set to False for laxity but only if needed. And Insecure!
     try:
         req = requests.head(url, allow_redirects=True, verify=True) 
 
@@ -72,13 +72,16 @@ def summarise_links(dbc):
     be extended.
     '''    
     # get all tweets with url entities
-    query = {'original.entities.urls.0.expanded_url':{"$exists":True}, 'url':{'$exists':False}}
-    results = dbc.find(query, no_cursor_timeout=True ).sort([("_id", pymongo.DESCENDING)])
+    query = {'original.entities.urls.0.expanded_url': \
+    {"$exists":True}, 'url':{'$exists':False}}
+    results = dbc.find(query, no_cursor_timeout=True ).\
+    sort([("_id", pymongo.DESCENDING)])
    
     for doc in results:
         
         # returns: title, keywords, summary, top_img_src
-        resolved_url = resolve_redirect(doc['original']['entities']['urls'][0]['expanded_url'])
+        resolved_url = resolve_redirect(\
+            doc['original']['entities']['urls'][0]['expanded_url'])
         if resolved_url == False:
             continue
         try:
@@ -114,8 +117,9 @@ def summarise_instagram(dbc):
 
     # get all tweets with instagram url 
     regex = re.compile('^instagram.com')
-    query = {'original':{'$exists':True}, 'img':{'$exists':False}, 'img_watson':{'$exists':False},\
-     'original.entities.urls.0.display_url':{'$regex':regex}}
+    query = {'original':{'$exists':True}, 'img':{'$exists':False},\
+    'img_watson':{'$exists':False},\
+    'original.entities.urls.0.display_url':{'$regex':regex}}
     results = dbc.find(query, no_cursor_timeout=True)
 
     for doc in results:
@@ -189,18 +193,20 @@ def summarise_images(dbc, options={'threshold':0.15}, watson=False ):
     if watson:
         img_key = 'img_watson'
 
-    # get all tweets with url entities, but not had this img classing done before:
-    query = {'original.entities.media.0.media_url':{'$exists':True}, img_key:{'$exists':False}}
+    # get all tweets with urls, but not had this img classing done before:
+    query = {'original.entities.media.0.media_url':{'$exists':True},\
+    img_key:{'$exists':False}}
     results = dbc.find(query, no_cursor_timeout=True)
     
     for doc in results:
         
         # returns: title, keywords, summary, top_img_src
-        resolved_url = resolve_redirect(doc['original']['entities']['media'][0]['media_url'])
-        print('trying url...', doc['original']['entities']['media'][0]['media_url'])
+        resolved_url = resolve_redirect(\
+            doc['original']['entities']['media'][0]['media_url'])
+        print('try url:', doc['original']['entities']['media'][0]['media_url'])
 
         if resolved_url == False:
-            print('redirection problem: ', doc['original']['entities']['media'][0]['media_url'])
+            print('Url? ', doc['original']['entities']['media'][0]['media_url'])
             continue
 
         data = {}
@@ -260,9 +266,7 @@ def check_locations(dbc, region='UK'):
     with open('uk_location_word_list.txt') as file:
         blacklist = file.read().splitlines()
     
-    
     for doc in results:
-
         check_for_location(doc, region, blacklist)
 
         # todo: update a db field to show this has a location or not
@@ -279,7 +283,8 @@ def check_for_location(tweet, region, blacklist):
         # get a tweet
 
         # lookup a keyword in hashtags for a location
-        # {'entities.hashtags.text':{$exists:true}} + {'entities.hashtags.text':1, 'text':1} project
+        # {'entities.hashtags.text':{$exists:true}} 
+        + {'entities.hashtags.text':1, 'text':1} 
         # lookup a keyword in tweet (normalised) tokenised text for a location
     '''
     import loc_lookup
@@ -289,24 +294,19 @@ def check_for_location(tweet, region, blacklist):
     logging.basicConfig(filename="log_locs.txt", \
         level=logging.INFO, format=FORMAT)
 
-
-    unigrams = tweet['txt']['parsed']
-    # TODO: load blacklist for this region
-
-
-    # fix should search bigrams first as more reliable
-    unigrams_cleaned = [token for token in unigrams if (token.lower()) not in blacklist]
+    
     try:
-        result = loc_lookup.lookup(unigrams_cleaned)
+        # we should search bigrams first as more reliable re: false positives
+        bigrams = [' '.join(elm) for elm in tweet['txt']['bigrams']]
+        result = loc_lookup.lookup(bigrams)[0]
+
         if not result:
-            bigrams = [' '.join(elm) for elm in tweet['txt']['bigrams']]
-            result = loc_lookup.lookup(bigrams)[0]
+            unigrams = tweet['txt']['parsed']
+            unigrams_cleaned = \
+            [token for token in unigrams if (token.lower()) not in blacklist]
+            result = loc_lookup.lookup(unigrams_cleaned)
             
-        
-        print(result[0])
-
-
-        # capture found lcoations so we can screen for false positives etc
+        # capture found locations so we can screen for false positives etc
         if len(result) > 1:
             found = ' '.join(result[1])
             if len(found) > 1:
@@ -316,15 +316,17 @@ def check_for_location(tweet, region, blacklist):
         logging.error('lookup failed: ' + e)
         return 0
 
-    
     return result[0]
+
 
 if __name__ == '__main__':   
     '''
-    Run various summaries to gather features and then do a classification on twitter data.
-    FIXME: should be improved with checking for duplicates (i.e. of already accessed resources)
+    Run various summaries to gather features and then do a classification on 
+    twitter data.
+    FIXME: should be improved with checking for duplicates 
+    (i.e. of already accessed resources)
     '''
-    ####################################################################################
+    ###########################################################################
     ## FEATURES gathering:
     # image summaries - using a web service
     ##
@@ -351,7 +353,7 @@ if __name__ == '__main__':
     # what is the feature ? record: nonnormalised; trigrams and bigrams joined
     params = [('original','text'), ('txt','normalised'), ('txt','parsed')]
 
-    ####################################################################################
+    ###########################################################################
     # CLASSIFYING:
     # params = [('txt','bigrams')]
     for param in params:
@@ -386,10 +388,12 @@ if __name__ == '__main__':
         # cl = NaiveBayesClassifier(train)
         # type = 'NaiveBayes'
 
-        # wraps NLTK simply: return nltk.classify.accuracy(self.classifier, test_features) 
+        # wraps NLTK simply: return nltk.classify.accuracy(self.classifier, 
+        # test_features) 
         acc = cl.accuracy(test) * 100
         print('Classifier Type      | ', type, ' with ', '.'.join(param))
-        print('Accuracy, train/test | ', '=',  str(acc), '% ,', len(train), '/', len(test))
+        print('Accuracy, train/test | ', '=',  str(acc), '% ,', len(train), \
+            '/', len(test))
         #cl.show_informative_features(30)
         print ('\n')
         print ('\n')
@@ -413,7 +417,7 @@ if __name__ == '__main__':
     # top five contriobuting feats
     cl.show_informative_features(5) 
 
-    # get the label probability distribution with the prob_classify(text) method.
+    # get the label probability distribution with the prob_classify(text) method
     prob_dist = cl.prob_classify(newitem)
     prob_dist.max()
     relevant = round(prob_dist.prob("pos"), 2)
@@ -426,10 +430,13 @@ if __name__ == '__main__':
 
 
     ### can pass a custom feature-extractor function to the clasifier
-    ## maybe try with one that removes key hashtag terms and see if it improves or not
-    # A feature extractor is simply a function with document (the text to extract features from)
+    ## maybe try with one that removes key hashtag terms and see if it 
+    # improves or not
+    # A feature extractor is simply a function with document 
+    # (the text to extract features from)
     # as the first argument.
-    # The function may include a second argument, train_set (the training dataset), if necessary.
+    # The function may include a second argument, 
+    # train_set (the training dataset), if necessary.
     #
     #
 
