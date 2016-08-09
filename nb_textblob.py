@@ -260,16 +260,16 @@ def check_locations(dbc, region='UK'):
     batch search a collection for locations in its tweets'
     parsed text tokens
     '''
-    query = {'txt':{'$exists':True}, 'has_location':{'$exists':False}}
+    query = {'txt':{'$exists':True}, 'locus':{'$exists':False}}
     results = dbc.find(query, no_cursor_timeout=True)
     blacklist = []
     with open('uk_location_word_list.txt') as file:
         blacklist = file.read().splitlines()
     
     for doc in results:
-        check_for_location(doc, region, blacklist)
-
-        # todo: update a db field to show this has a location or not
+        locus = check_for_location(doc, region, blacklist)
+        # update a db field to show this has a location or not
+        dbc.update({'_id':doc['_id']}, {'$set': {'locus':locus}})
 
     print('locations search complete')
     del results
@@ -294,26 +294,26 @@ def check_for_location(tweet, region, blacklist):
     logging.basicConfig(filename="log_locs.txt", \
         level=logging.INFO, format=FORMAT)
 
-    
     try:
         # we should search bigrams first as more reliable re: false positives
         bigrams = [' '.join(elm) for elm in tweet['txt']['bigrams']]
-        result = loc_lookup.lookup(bigrams)[0]
-
-        if not result:
+        result = loc_lookup.lookup(bigrams)
+        print(result)
+        if not result[0]:
             unigrams = tweet['txt']['parsed']
-            unigrams_cleaned = \
-            [token for token in unigrams if (token.lower()) not in blacklist]
-            result = loc_lookup.lookup(unigrams_cleaned)
+            uni = [one for one in unigrams if (one.lower()) not in blacklist]
+            result = loc_lookup.lookup(uni)
+            print(result)
+            
             
         # capture found locations so we can screen for false positives etc
-        if len(result) > 1:
+        if (type(result) != 'int') and (len(result) > 1) and (len(result[1]) > 0):
             found = ' '.join(result[1])
             if len(found) > 1:
                 logging.info(str(tweet['_id']) + ': ' + found)
 
     except Exception as e:
-        logging.error('lookup failed: ' + e)
+        logging.error('lookup failed: ' + str(e))
         return 0
 
     return result[0]
@@ -331,14 +331,17 @@ if __name__ == '__main__':
     # image summaries - using a web service
     ##
 
-    coll = 'sample_a200'
+    
+
+    colls = ['testset_a','sample_stream2_990', 'sample_stream2_brexit', 'sample_britishsummer990', 'sample_stream2_rain', 'stream2_storm_all', 'stream2flood_all', 'rawtweets']
     # summarise_instagram(jlpb.get_dbc('Twitter', coll))
     # print('done insta')
     # Uncomment below for URL extraction of summary on MongodDB
     # summarise_links(jlpb.get_dbc('Twitter', coll))
-    check_locations(jlpb.get_dbc('Twitter', coll))
+    for coll in colls:
+        check_locations(jlpb.get_dbc('Twitter', coll))
 
-    exit('finsihed links summarising')
+    exit('finsihed locus summarising')
     print('running Algo summarising')
     count = summarise_images(jlpb.get_dbc('Twitter', coll), watson=False)
     print(count, 'updates')

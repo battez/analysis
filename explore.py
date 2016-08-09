@@ -137,7 +137,6 @@ if __name__ == '__main__':
      None, True, "_".join(re.findall("[a-zA-Z]+", current_category)) )
 
 
-
     exit('CSV data only run. Remove me to use MongoDb')
 
 
