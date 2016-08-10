@@ -339,6 +339,7 @@ if __name__ == '__main__':
     # Uncomment below for URL extraction of summary on MongodDB
     # summarise_links(jlpb.get_dbc('Twitter', coll))
     for coll in colls:
+        print(coll, ' ... updating locus')
         check_locations(jlpb.get_dbc('Twitter', coll))
 
     exit('finsihed locus summarising')
