@@ -65,6 +65,7 @@ field
 flash
 football
 ford
+foxgloves
 friendly
 gibraltar
 grays
@@ -82,6 +83,7 @@ hey
 hide
 highway
 hill
+hive
 hoe
 holders
 holding
@@ -91,6 +93,7 @@ hope
 howe
 infirmary
 jaguar
+jump
 keeping
 kelly
 kingdom
@@ -193,6 +196,7 @@ trevor
 turn
 valentines
 victory
+vineyard
 water
 wall
 way

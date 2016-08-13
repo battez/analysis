@@ -56,7 +56,8 @@ def strip_mentions(text):
     return ' '.join(words)
 
 
-def normalise_tweet(tweet, nums=True):
+
+def normalise_tweet(tweet, nums=True, unicode_replace=False):
     '''
     Converts to lower case and cleans up the text.
     '''
@@ -64,6 +65,30 @@ def normalise_tweet(tweet, nums=True):
     # Various regular expressions used to clean up the tweet data
     # remove_ellipsis_re = re.compile(r'[\.{2}\u2026]')
     # \.{2,}(.+)
+     
+    # FIXME 
+    '''
+    try:
+        # UCS-4
+        uni_re = re.compile(u'['
+        u'\U0001F300-\U0001F64F'
+        u'\U0001F680-\U0001F6FF'
+        u'\u2600-\u26FF\u2700-\u27BF]+', 
+        re.UNICODE)
+    except re.error:
+        # UCS-2
+        uni_re = re.compile(u'('
+        u'\ud83c[\udf00-\udfff]|'
+        u'\ud83d[\udc00-\ude4f\ude80-\udeff]|'
+        u'[\u2600-\u26FF\u2700-\u27BF])+', 
+        re.UNICODE)
+
+    if unicode_replace:
+        
+        tweet = re.sub(uni_re, '', tweet)
+    '''
+ 
+
     remove_ellipsis_re = re.compile(r'[^\.]\.{2,3}')
     punct_re = re.compile(r"[\"'\[\],’#.:;()&!\u2026]") # leave hyphens
     number_re = re.compile(r"\d+")
@@ -85,6 +110,10 @@ def normalise_tweet(tweet, nums=True):
     # remove numbers:
     if nums:
         tweet = re.sub(number_re, '', tweet)
+
+    # replace multiple spaces with one only:
+    tweet = ' '.join(tweet.split())
+
 
     return tweet
 
