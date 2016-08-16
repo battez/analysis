@@ -103,13 +103,20 @@ def quick_label_tweets():
 
 if __name__ == '__main__':   
 
+    import logging
+    logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',\
+     level=logging.INFO)
 
+    # What are we doing with this run of the script? 
+    # 
     WRITE_OUT = False
-    CREATE_MODEL = False
-    fout = 'model_d2v.d2v'
+    CREATE_MODEL = True # set false to load the model with chosen parameters
+
+    fout = 'model_d2v.d2v' #output filename suffix
 
     # train and test sets set up:
-    files = ['train_pos_frm500.txt','train_neg_frm500.txt', 'test_pos_frm500.txt', 'test_neg_frm500.txt', 'unlabelled.txt']
+    files = ['train_pos_frm500.txt','train_neg_frm500.txt',\
+     'test_pos_frm500.txt', 'test_neg_frm500.txt', 'unlabelled.txt']
     
     ftrainpos = open(files[0], 'a', encoding='utf-8') 
     ftrainneg = open(files[1], 'a', encoding='utf-8')
@@ -167,14 +174,15 @@ if __name__ == '__main__':
         del docs
 
     #
-    # PARAMS for Word2Vec etc =======================================
+    # PARAMS for Word2Vec & Doc2Vec =======================================
     #
     #
-    epochs = 15
-    vec_length = 80 # rule thumb, sqrt of vocab.
-    window=10
+    epochs = 18
+    vec_length = 92 # rule thumb, sqrt of vocab.
+    window=8
     vec_type = 'doc2vec'
-
+    negsample=6
+    sample=1e-4
 
     if CREATE_MODEL:
         
@@ -188,7 +196,7 @@ if __name__ == '__main__':
 
         if vec_type == 'doc2vec':
             # sample=1e-4, negative=5, 
-            model = Doc2Vec(min_count=1, window=6, size=vec_length, workers=8)
+            model = Doc2Vec(min_count=1, window=6, size=vec_length, workers=8, negative=negsample, sample=sample)
             model.build_vocab(sentences.to_array())
             # more is better but longer... ~ 20 ideal
             for epoch in range(epochs):
@@ -207,10 +215,11 @@ if __name__ == '__main__':
 
         
 
-        model.save('./' + str(epochs) + '_' + str(vec_length) + fout)
+        model.save('./sample_neg' + str(negsample) + '_' + \
+            str(epochs) + '_' + str(vec_length) + fout)
 
     if vec_type == 'doc2vec':
-        model = Doc2Vec.load('./' + str(epochs) + '_' + str(vec_length) + fout)
+        model = Doc2Vec.load('./sample_neg' + str(negsample) + '_' + str(epochs) + '_' + str(vec_length) + fout)
     else:
         model = Word2Vec.load('./' + str(epochs) + '_' + str(vec_length) + fout)
 
@@ -231,7 +240,10 @@ if __name__ == '__main__':
     print(type(model.syn0))
     print(model.syn0[0,0])
 
-    print(model.most_similar('farage'))
+    print(model.most_similar('bexleyheath'))
+    print(model.most_similar('surbiton'))
+    print(model.most_similar('catford'))
+    print(model.most_similar('love'))
     # do a test run on docs:
     doctest = ['brexit','I','voted','just','now'] 
     res = model.infer_vector(doctest)
@@ -239,8 +251,7 @@ if __name__ == '__main__':
     doctest = ['flooding','raining','this','morning','london'] 
     res = model.infer_vector(doctest)
     print(res)
-    print('end')
-    exit()
+   
     #   negative=neg,topn=5), file=f)
     # print('+'.join(pos) + ' - (' + '+'.join(neg) + ')', file=f)
     # jlpb.uprint(model.most_similar(positive=pos,\
@@ -271,16 +282,16 @@ if __name__ == '__main__':
         answer.append([term, model.doesnt_match(term)])
     jlpb.uprint(u''+tabulate(answer, headers=headers, tablefmt=STYLETABLE), file=f)
     
-    terms = ['brexit', 'flood', 'weather', 'rain']
+    terms = ['brexit', 'flooding','flood', 'weather', 'rain','love','friend','cat','dog']
     mostlike = []
     headers = ['Keyword', 'Most similar terms (cosine sim.)']
     for term in terms:
         mostlike.append([term, model.most_similar(term)])
     jlpb.uprint(tabulate(mostlike, headers=headers, tablefmt=STYLETABLE), file=f)
 
-    comparisons = [('rain', 'flooding'), ('london','flooding'), ('essex','flooding'), ('floods','storms'), \
+    comparisons = [('bexleyheath','flooding'), ('rain', 'flooding'), ('london','flooding'), ('essex','flooding'), ('floods','storms'), \
      ('thunderstorm', 'lightning'), ('weather', 'delays'), ('weather','trains'), ('boris','cameron'),\
-      ('remain','brexit'), ('leave','brexit'), ('flood', 'brexit'),('voteleave', 'voteremain'), ('eu','brexit')]
+      ('remain','brexit'), ('leave','brexit'), ('flood', 'brexit'),('voteleave', 'voteremain'), ('eu','brexit'),('love','flooding')]
     similarity = []
     headers = ['Cosine Similarity Between', 'Value']
     for item in comparisons:
