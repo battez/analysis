@@ -4,7 +4,7 @@ scratch.py
 *.csv
 *.txt
 *.d2v
-
+*.npy
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

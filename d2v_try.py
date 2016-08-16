@@ -5,7 +5,7 @@ try out a gensim doc2vec model train on tweets
 # gensim modules
 from gensim import utils
 from gensim.models.doc2vec import LabeledSentence
-from gensim.models import Doc2Vec
+from gensim.models import Doc2Vec, Word2Vec
 
 # numpy
 import numpy
@@ -39,9 +39,15 @@ import prepare
 if CURR_PLATFORM != 'linux':
     dbc = jlpb.get_dbc('Twitter', 'sampledate23_500')
     dbun = jlpb.get_dbc('Twitter', 'buffer50k')
+    dbt = jlpb.get_dbc('Twitter', 'buffer10k')
 
 
 class LabeledLineSentence(object):
+    '''
+    credit: http://linanqiu.github.io/2015/10/07/word2vec-sentiment/
+    this class taken from URL above, to assist with using Doc2Vec Sentence Labels
+    and multiple files as typically used to train test models etc.
+    '''
     def __init__(self, sources):
         self.sources = sources
         
@@ -73,6 +79,28 @@ class LabeledLineSentence(object):
         return self.sentences
 
 
+
+def quick_label_tweets():
+    '''
+    run through a mongodb collection of tweets, prompting -
+    asking user to label the tweet before moving to next one.
+    '''
+    docs = dbt.find()
+    count = 0
+
+    while docs:
+
+        response = input('text: ' + jlpb.uprint(doc['text']) + \
+            "\n user:" + jlpb.uprint(doc['user']['screen_name']) + \
+            "\n place:" + jlpb.uprint(doc['place']['full_name']))
+        count += 1
+        print('for ' + count + ', you said ', response.upper())
+
+        # update db record
+    
+    print('docs complete')
+
+
 if __name__ == '__main__':   
 
 
@@ -94,14 +122,14 @@ if __name__ == '__main__':
     ntrain = 450
 
     if WRITE_OUT:
+
+        # take out Test set first:
         docs = dbc.find()
 
-        # take out test set first:
         for doc in docs[:ntest]:
 
             # normalise tweet text
             text = prepare.normalise_tweet(doc['text'], unicode_replace=False)
-            # jlpb.uprint(text)
             
             # write to file with label
             # write to diff file depending on t_Class label
@@ -112,8 +140,8 @@ if __name__ == '__main__':
         
         del docs
         
+        # Now write out the Train set (two classes):
         docs = dbc.find()
-        # then write out the train set (two classes):
         for doc in docs[ntest:]:
 
             # normalise tweet text
@@ -128,19 +156,28 @@ if __name__ == '__main__':
 
         del docs
 
-        # then write out the unlabelled:
+        # Then write out the Unlabelled:
         docs = dbun.find()
         for doc in docs:
 
             # normalise tweet text
             text = prepare.normalise_tweet(doc['text'], unicode_replace=False)
-            
             funlabelled.write(text + '\n')
         
         del docs
 
+    #
+    # PARAMS for Word2Vec etc =======================================
+    #
+    #
+    epochs = 15
+    vec_length = 80 # rule thumb, sqrt of vocab.
+    window=10
+    vec_type = 'doc2vec'
+
+
     if CREATE_MODEL:
-        epochs = 20
+        
         sources = { files[0]:'TRAIN_POS',\
                     files[1]:'TRAIN_NEG',\
                     files[2]:'TEST_POS',\
@@ -149,23 +186,80 @@ if __name__ == '__main__':
 
         sentences = LabeledLineSentence(sources)
 
-        model = Doc2Vec(min_count=1, window=10, size=100, sample=1e-4, negative=5, workers=3)
+        if vec_type == 'doc2vec':
+            # sample=1e-4, negative=5, 
+            model = Doc2Vec(min_count=1, window=6, size=vec_length, workers=8)
+            model.build_vocab(sentences.to_array())
+            # more is better but longer... ~ 20 ideal
+            for epoch in range(epochs):
+                model.train(sentences.sentences_perm())
+        else:
+            model = Word2Vec(min_count=10, window=window, size=vec_length, workers=8)
+            model.build_vocab(sentences)
+            # more is better but longer... ~ 20 ideal
+            for epoch in range(epochs):
+                '''
+                in every training epoch, the set of sentences input to the model 
+                gets randomised
+                ''' 
+                model.train(sentences.sentences_perm())
+       
 
-        # using mostly the buffer data from that day.
-        model.build_vocab(sentences.to_array())
+        
 
-        # more is better but longer... ~ 20 ideal
-        for epoch in range(epochs):
-            model.train(sentences.sentences_perm())
+        model.save('./' + str(epochs) + '_' + str(vec_length) + fout)
 
-        model.save('./' + str(epochs) + fout)
+    if vec_type == 'doc2vec':
+        model = Doc2Vec.load('./' + str(epochs) + '_' + str(vec_length) + fout)
+    else:
+        model = Word2Vec.load('./' + str(epochs) + '_' + str(vec_length) + fout)
 
-    model = Doc2Vec.load('./' + str(20) + fout)
-
-    print('test algebra')
-    print(model.most_similar(positive=['eu', 'out'], negative=['remain'], topn=10))
-    print('no match or odd one out')
     
+
+    f = open('d2v_results.txt','a')
+    vocab = print('Vocab. length: ', str(len(list(model.vocab.keys()))), file=f)
+
+    print('\n')
+    print('Vector size:  ', vec_length, 'Type:', vec_type, 'Window: ', window, file=f)
+    print(' (epochs =', str(epochs), ')', file=f)
+    print('========================================================')
+    print('\n\ntest algebra:', file=f)
+    pos = ['brexit']
+    neg = ['leave', 'voteleave']
+    print('debug numpy array')
+    print('sentence vector: numpy', model.syn0.shape) # vocab * vec_length 
+    print(type(model.syn0))
+    print(model.syn0[0,0])
+
+    print(model.most_similar('farage'))
+    # do a test run on docs:
+    doctest = ['brexit','I','voted','just','now'] 
+    res = model.infer_vector(doctest)
+    print(res)
+    doctest = ['flooding','raining','this','morning','london'] 
+    res = model.infer_vector(doctest)
+    print(res)
+    print('end')
+    exit()
+    #   negative=neg,topn=5), file=f)
+    # print('+'.join(pos) + ' - (' + '+'.join(neg) + ')', file=f)
+    # jlpb.uprint(model.most_similar(positive=pos,\
+    #   negative=neg,topn=5), file=f)
+    # jlpb.uprint(model.most_similar(positive=['voteleave','leave'],\
+    #   topn=5), file=f)
+    # jlpb.uprint(model.most_similar(positive=['voteremain','remain'],\
+    #   topn=5), file=f)
+    # jlpb.uprint(model.most_similar(positive=['voting','euref'],\
+    #   topn=5), file=f)
+
+    # Only works in Word2Vec objects:
+    # jlpb.uprint(model.similar_by_vector([1,2]))
+    # jlpb.uprint(model.n_similarity(['football','tv'],['rain','storm']), file=f) 
+    # items = ['brexit','storm','flooding','weather','farage','immigrants']
+    # for item in items:
+    #     jlpb.uprint('nsimilar: ' + item + ' - ',  model.similar_by_word(list(item)), file=f) 
+
+
     from tabulate import tabulate
 
     STYLETABLE = 'psql'
@@ -175,22 +269,22 @@ if __name__ == '__main__':
     answer = []
     for term in terms:
         answer.append([term, model.doesnt_match(term)])
-    print (tabulate(answer, headers=headers, tablefmt=STYLETABLE))
-
+    jlpb.uprint(u''+tabulate(answer, headers=headers, tablefmt=STYLETABLE), file=f)
+    
     terms = ['brexit', 'flood', 'weather', 'rain']
     mostlike = []
-    headers = ['Keyword', 'The terms most similar to keyword']
+    headers = ['Keyword', 'Most similar terms (cosine sim.)']
     for term in terms:
         mostlike.append([term, model.most_similar(term)])
-    print (tabulate(mostlike, headers=headers, tablefmt=STYLETABLE))
+    jlpb.uprint(tabulate(mostlike, headers=headers, tablefmt=STYLETABLE), file=f)
 
     comparisons = [('rain', 'flooding'), ('london','flooding'), ('essex','flooding'), ('floods','storms'), \
      ('thunderstorm', 'lightning'), ('weather', 'delays'), ('weather','trains'), ('boris','cameron'),\
       ('remain','brexit'), ('leave','brexit'), ('flood', 'brexit'),('voteleave', 'voteremain'), ('eu','brexit')]
     similarity = []
-    headers = ['Similarity Between', 'Value']
+    headers = ['Cosine Similarity Between', 'Value']
     for item in comparisons:
         similarity.append( [','.join(item), str(model.similarity(item[0], item[1])) ])
-    print (tabulate(similarity, headers=headers, tablefmt=STYLETABLE))
+    jlpb.uprint(tabulate(similarity, headers=headers, tablefmt=STYLETABLE), file=f)
 
     
