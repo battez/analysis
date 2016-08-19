@@ -1,7 +1,8 @@
 '''
+PYTHON 2.* version as could not get tsne to work in v3 :( 
 try out a gensim doc2vec model train on tweets 
 '''
-
+import struct;print struct.calcsize("P") * 8 # python
 # gensim modules
 from gensim import utils
 from gensim.models.doc2vec import LabeledSentence
@@ -32,14 +33,12 @@ sys.path.insert(0, TWITDIR)
 sys.path.insert(0, SCRAPEDIR)
 
 # get some handy functions 
-import jlpb
-import prepare
+# import jlpb
+# import prepare
 
 # get training and test data from mongodb:
 if CURR_PLATFORM != 'linux':
-    dbc = jlpb.get_dbc('Twitter', 'sampledate23_500')
-    dbun = jlpb.get_dbc('Twitter', 'buffer50k')
-    dbt = jlpb.get_dbc('Twitter', 'buffer10k')
+    print('edit to add mongodb connexction')
 
 
 class LabeledLineSentence(object):
@@ -79,65 +78,43 @@ class LabeledLineSentence(object):
         return self.sentences
 
 
+
 def quick_label_tweets():
     '''
     run through a mongodb collection of tweets, prompting -
     asking user to label the tweet before moving to next one.
     '''
-    docs = dbt.find()[3023:]
+    docs = dbt.find()
     count = 0
-    response = ''
 
-    for doc in docs:
+    while docs:
 
-        place = doc['place']['full_name']
-        
-        stop = False
+        response = input('text: ' + jlpb.uprint(doc['text']) + \
+            "\n user:" + jlpb.uprint(doc['user']['screen_name']) + \
+            "\n place:" + jlpb.uprint(doc['place']['full_name']))
         count += 1
+        print 'for ' + count + ', you said ', response.upper()
 
-        while True:
-            response = input( jlpb.uprint(doc['id_str'] + ': ' + doc['text'] + \
-                        "\n user:" + doc['user']['screen_name'] + \
-                            "\n place:" + place) )
-            if response == 'x':
-                stop = True
-                break
-            elif response == 'y':
-                # update db record
-                dbt.update_one({
-                  '_id': doc['_id']
-                },{
-                  '$set': {
-                    't_class': 1
-                  }
-                }, upsert=False)
-                response = 'yes'
-                
-            else:
-                response = 'n'
+        # TODO: update db record
+    
 
-            print('...for ' + str(count) + ', you said ', response.upper())
-            print('------------------------------------')
-            break
 
-        if stop:
-            break
-
-    print('docs complete: ', count)
 
 
 def make_tsne(model):
-    '''
-    problematic right now - too many rows being passed and TSNE doesnt like it.
-    '''
-    import numpy as np
+    
+    import time
     from sklearn.manifold import TSNE
     from sklearn.cluster import AffinityPropagation
     from sklearn.decomposition import PCA
     from sklearn.decomposition import TruncatedSVD
     from sklearn.cluster import KMeans
     import matplotlib.pyplot as plt
+    n_sne = 7000
 
+    time_start = time.time()
+    
+    
     dims_2 = []
     labels = list(model.docvecs.doctags.keys())
 
@@ -159,32 +136,41 @@ def make_tsne(model):
 
 
 
-    svd = TruncatedSVD(n_components=20, random_state=0)
+    #svd = TruncatedSVD(n_components=16, random_state=0)
     # , perplexity=10.0, learning_rate=200, n_iter=300, metric='cityblock'
-    
-    model_svd = svd.fit_transform(model.docvecs)
-    print('svdshape', model_svd.shape) # 50k , 40
+
+    #model_svd = svd.fit_transform(model.docvecs)
+    #print 'svdshape', model_svd.shape # 50k , 40
 
     tsnem = TSNE(n_components=2, \
          random_state=0, verbose=1, metric='euclidean')
 
     # tsne_ready = tsnem.fit_transform(model_svd)
-
-    # print(tsne_ready.shape)
-
+    dims2 = []
+    # print tsne_ready.shape
+    # print dir(tsne_ready)
+    
     for idx, doc in enumerate(model.docvecs):
         if idx % 10000 == 0:
-            print('doc: ', idx)
+            print 'doc: ', idx
+        print doc
+        print numpy.isfinite(doc).all() # True 
+        print numpy.isnan(doc).all() # False
+        print numpy.isinf(doc).all() # False
+        print 'done'
+        
         dims_2.append(TSNE().fit_transform(doc).tolist()[0])
 
-    # cache tsne as CSV
-    np.savetxt('doc2vec_tsne.csv', dims_2, delimiter='\t')
+    print 't-SNE done! Time elapsed: {} seconds'.format(time.time()-time_start)
 
-    print('clusters:')
+    # cache tsne as CSV
+    numpy.savetxt('doc2vec_tsne.csv', dims_2, delimiter='\t')
+
+    print 'clusters:'
 
     affp = AffinityPropagation().fit(dims_2)
 
-    print('Preparing plot...')
+    print 'Preparing plot...'
     plot_cluster(affp, dims_2, labels)
 
     # return np.asarray(dims_2) 
@@ -227,20 +213,16 @@ def plot_cluster(af, doc_2d, fnames):
                         textcoords="offset points", va="center", ha="left")
 
     plt.savefig("out_doc2vec.png", facecolor="w", dpi=90)
-    print("saved output to ./out_doc2vec.png\n")
+    print "saved output to ./out_doc2vec.png\n"
 
 
 
 if __name__ == '__main__':   
 
-
     import logging
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',\
      level=logging.INFO)
 
-    quick_label_tweets()
-
-    exit('input ended')
     # What are we doing with this run of the script? 
     # 
     WRITE_OUT = False
@@ -252,11 +234,11 @@ if __name__ == '__main__':
     files = ['train_pos_frm500.txt','train_neg_frm500.txt',\
      'test_pos_frm500.txt', 'test_neg_frm500.txt', 'unlabelled.txt']
     
-    ftrainpos = open(files[0], 'a', encoding='utf-8') 
-    ftrainneg = open(files[1], 'a', encoding='utf-8')
-    ftestpos = open(files[2], 'a', encoding='utf-8') 
-    ftestneg = open(files[3], 'a', encoding='utf-8')
-    funlabelled = open(files[4], 'a', encoding='utf-8')
+    ftrainpos = open(files[0], 'a') 
+    ftrainneg = open(files[1], 'a')
+    ftestpos = open(files[2], 'a') 
+    ftestneg = open(files[3], 'a')
+    funlabelled = open(files[4], 'a')
 
     # split amounts
     ntest = 50
@@ -358,7 +340,7 @@ if __name__ == '__main__':
 
     if vec_type == 'doc2vec':
         # model = Doc2Vec.load('./sample_neg' + str(negsample) + '_' + str(epochs) + '_' + str(vec_length) + fout)
-        model = Doc2Vec.load('./sample_neg6_18_92model_d2v.d2v')
+        model = Doc2Vec.load('./sample_neg6_16_32model_d2v.d2v')
         tsne = make_tsne(model)
 
         doc_orig = model.syn0
@@ -368,7 +350,7 @@ if __name__ == '__main__':
         labels = list(model.docvecs.doctags.keys())
         # build list of tags from the metadata
         df = pd.DataFrame(index=labels, columns=['Words'])
-        print(df.describe())
+        print df.describe()
 
         # a list of all sentence labels -- long!!
         # print(model.docvecs.offset2doctag) #   e.g. TEST_POS_0 , TRAIN_UNS_0  etc
@@ -376,90 +358,19 @@ if __name__ == '__main__':
         # NB can refer to sepcific doc vector then, like so:
         dockey ='TEST_POS_0'
         docvec = model.docvecs[dockey] 
-        print(dockey, docvec)
+        print dockey, docvec
         # TODO: could try compare some flood - tweets here and then also with non flood tweets 
         # for distance assessment
 
-        print(df.iloc[95:100, :10]) # alt way of doing head()
-        print('\n\n')
-        print(df.tail())
+        print df.iloc[95:100, :10] # alt way of doing head()
+        print '\n\n'
+        print df.tail() 
 
     else:
         model = Word2Vec.load('./' + str(epochs) + '_' + str(vec_length) + fout)
 
     
 
-    f = open('d2v_results.txt','a')
-    vocab = print('Vocab. length: ', str(len(list(model.vocab.keys()))), file=f)
 
-    print('\n')
-    print('Vector size:  ', vec_length, 'Type:', vec_type, 'Window: ', window, file=f)
-    print(' (epochs =', str(epochs), ')', file=f)
-    print('========================================================')
-    print('\n\ntest algebra:', file=f)
-    pos = ['brexit']
-    neg = ['leave', 'voteleave']
-    print('debug numpy array')
-    print('sentence vector: numpy', model.syn0.shape) # vocab * vec_length 
-    print(type(model.syn0))
-    print(model.syn0[0,0])
-
-    print(model.most_similar('bexleyheath'))
-    print(model.most_similar('surbiton'))
-    print(model.most_similar('catford'))
-    print(model.most_similar('love'))
-    # do a test run on docs:
-    doctest = ['brexit','I','voted','just','now'] 
-    res = model.infer_vector(doctest)
-    print(res)
-    doctest = ['flooding','raining','this','morning','london'] 
-    res = model.infer_vector(doctest)
-    print(res)
-   
-    #   negative=neg,topn=5), file=f)
-    # print('+'.join(pos) + ' - (' + '+'.join(neg) + ')', file=f)
-    # jlpb.uprint(model.most_similar(positive=pos,\
-    #   negative=neg,topn=5), file=f)
-    # jlpb.uprint(model.most_similar(positive=['voteleave','leave'],\
-    #   topn=5), file=f)
-    # jlpb.uprint(model.most_similar(positive=['voteremain','remain'],\
-    #   topn=5), file=f)
-    # jlpb.uprint(model.most_similar(positive=['voting','euref'],\
-    #   topn=5), file=f)
-
-    # Only works in Word2Vec objects:
-    # jlpb.uprint(model.similar_by_vector([1,2]))
-    # jlpb.uprint(model.n_similarity(['football','tv'],['rain','storm']), file=f) 
-    # items = ['brexit','storm','flooding','weather','farage','immigrants']
-    # for item in items:
-    #     jlpb.uprint('nsimilar: ' + item + ' - ',  model.similar_by_word(list(item)), file=f) 
-
-
-    from tabulate import tabulate
-
-    STYLETABLE = 'psql'
-    headers = ['Odd one out?', 'Answer']
-    terms = [['thunder','lightning','weather','euref'], ['remain','southernrail','brexit','ukip'],\
-    ['rain','train','work','morning']]
-    answer = []
-    for term in terms:
-        answer.append([term, model.doesnt_match(term)])
-    jlpb.uprint(u''+tabulate(answer, headers=headers, tablefmt=STYLETABLE), file=f)
-    
-    terms = ['brexit', 'flooding','flood', 'weather', 'rain','love','friend','cat','dog']
-    mostlike = []
-    headers = ['Keyword', 'Most similar terms (cosine sim.)']
-    for term in terms:
-        mostlike.append([term, model.most_similar(term)])
-    jlpb.uprint(tabulate(mostlike, headers=headers, tablefmt=STYLETABLE), file=f)
-
-    comparisons = [('bexleyheath','flooding'), ('rain', 'flooding'), ('london','flooding'), ('essex','flooding'), ('floods','storms'), \
-     ('thunderstorm', 'lightning'), ('weather', 'delays'), ('weather','trains'), ('boris','cameron'),\
-      ('remain','brexit'), ('leave','brexit'), ('flood', 'brexit'),('voteleave', 'voteremain'), ('eu','brexit'),('love','flooding')]
-    similarity = []
-    headers = ['Cosine Similarity Between', 'Value']
-    for item in comparisons:
-        similarity.append( [','.join(item), str(model.similarity(item[0], item[1])) ])
-    jlpb.uprint(tabulate(similarity, headers=headers, tablefmt=STYLETABLE), file=f)
 
     
