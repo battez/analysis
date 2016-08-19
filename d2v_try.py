@@ -159,23 +159,34 @@ def make_tsne(model):
 
 
 
-    svd = TruncatedSVD(n_components=20, random_state=0)
-    # , perplexity=10.0, learning_rate=200, n_iter=300, metric='cityblock'
-    
+    svd = TruncatedSVD(n_components=40, random_state=0)    
     model_svd = svd.fit_transform(model.docvecs)
     print('svdshape', model_svd.shape) # 50k , num vector dims in params of d2v
 
-    tsnem = TSNE(n_components=2, \
-         random_state=0, verbose=1, metric='euclidean')
+    # simple plot examples: http://alexanderfabisch.github.io/t-sne-in-scikit-learn.html 
+    # this will iterate until no more progress is made or use n_iter= param
+    # euclidean is squared euclid distance
+    tsnem = TSNE(n_components=2, random_state=0, verbose=1, metric='euclidean',\
+     learning_rate=300, perplexity=40, n_iter=400)
 
-    # tsne_ready = tsnem.fit_transform(model_svd)
+    # NB angle is tradeoff accuracy vs process time, higher is more accurate.
+    trimmed = model_svd[:15000]
+    tsne_ready = tsnem.fit_transform(trimmed)
 
-    # print(tsne_ready.shape)
+    print(tsne_ready.shape)
+    try:
+        print(tsne_ready[0])
+    except:
+        pass
 
-    for idx, doc in enumerate(model.docvecs):
-        if idx % 10000 == 0:
-            print('doc: ', idx)
-        dims_2.append(TSNE().fit_transform(doc).tolist()[0])
+    np.savetxt('doc2vec_tsne_svd.csv', tsne_ready, delimiter='\t')
+    plot_tsne(False, tsne_ready)
+    exit()
+    # test code: 
+    # for idx, doc in enumerate(model.docvecs):
+    #     if idx % 10000 == 0:
+    #         print('doc: ', idx)
+    #     dims_2.append(TSNE( n_components=2, random_state=0, verbose=1, metric='euclidean').fit_transform(doc).tolist()[0])
 
     # cache tsne as CSV
     print(dims_2[0, :])
@@ -190,7 +201,7 @@ def make_tsne(model):
 
     # return np.asarray(dims_2) 
 
-def plot_tsne(file=False, dims2=False):
+def plot_tsne(file=False, data=False):
     x, y = ([], [])
 
     if file:
@@ -203,13 +214,16 @@ def plot_tsne(file=False, dims2=False):
                 y.append(row[1])
                 if idx > 50000:
                     break
+    else:
+        x = data[:, 0]
+        y = data[:, 1]
 
 
     import bokeh.plotting as bp
     from bokeh.models import HoverTool, BoxSelectTool
     from bokeh.plotting import figure, show, output_file
 
-    output_file('tsne.html',title='TSNE tweets data')
+    output_file('svd_tsne.html',title='TSNE tweets data')
     plot_d2v = bp.figure(plot_width=1200, plot_height=900, title="tSNE tweets (doc2vec)",
         tools="pan,wheel_zoom,box_zoom,reset,hover,previewsave",
         x_axis_type=None, y_axis_type=None, min_border=1)
@@ -276,9 +290,9 @@ if __name__ == '__main__':
 
     d2file = 'doc2vec_tsne.csv'
 
-    plot_tsne(d2file)
+    # plot_tsne(d2file)
 
-    exit()
+    # exit()
     # What are we doing with this run of the script? 
     # 
     WRITE_OUT = False
@@ -398,6 +412,10 @@ if __name__ == '__main__':
     if vec_type == 'doc2vec':
         # model = Doc2Vec.load('./sample_neg' + str(negsample) + '_' + str(epochs) + '_' + str(vec_length) + fout)
         # model = Doc2Vec.load('./sample_neg6_18_92model_d2v.d2v')
+        try:
+            most_recent
+        except:
+            most_recent = 'dm0sample_neg6_16_92model_d2v.d2v'
         model = Doc2Vec.load(most_recent)
         tsne = make_tsne(model)
 
