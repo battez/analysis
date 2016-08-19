@@ -95,9 +95,6 @@ def quick_label_tweets():
         count += 1
         print 'for ' + count + ', you said ', response.upper()
 
-        # TODO: update db record
-    
-
 
 
 

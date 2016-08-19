@@ -163,7 +163,7 @@ def make_tsne(model):
     # , perplexity=10.0, learning_rate=200, n_iter=300, metric='cityblock'
     
     model_svd = svd.fit_transform(model.docvecs)
-    print('svdshape', model_svd.shape) # 50k , 40
+    print('svdshape', model_svd.shape) # 50k , num vector dims in params of d2v
 
     tsnem = TSNE(n_components=2, \
          random_state=0, verbose=1, metric='euclidean')
@@ -178,16 +178,49 @@ def make_tsne(model):
         dims_2.append(TSNE().fit_transform(doc).tolist()[0])
 
     # cache tsne as CSV
+    print(dims_2[0, :])
     np.savetxt('doc2vec_tsne.csv', dims_2, delimiter='\t')
+    plot_tsne(dims_2)
 
-    print('clusters:')
+    # print('clusters:')
+    # affp = AffinityPropagation().fit(dims_2)
 
-    affp = AffinityPropagation().fit(dims_2)
-
-    print('Preparing plot...')
-    plot_cluster(affp, dims_2, labels)
+    # print('Preparing plot...')
+    # plot_cluster(affp, dims_2, labels)
 
     # return np.asarray(dims_2) 
+
+def plot_tsne(file=False, dims2=False):
+    x, y = ([], [])
+
+    if file:
+        import csv
+        with open(file) as csv_file:
+            read_csv = csv.reader(csv_file, delimiter='\t')
+           
+            for idx, row in enumerate(read_csv):
+                x.append(row[0])
+                y.append(row[1])
+                if idx > 50000:
+                    break
+
+
+    import bokeh.plotting as bp
+    from bokeh.models import HoverTool, BoxSelectTool
+    from bokeh.plotting import figure, show, output_file
+
+    output_file('tsne.html',title='TSNE tweets data')
+    plot_d2v = bp.figure(plot_width=1200, plot_height=900, title="tSNE tweets (doc2vec)",
+        tools="pan,wheel_zoom,box_zoom,reset,hover,previewsave",
+        x_axis_type=None, y_axis_type=None, min_border=1)
+
+    # plot_d2v.scatter(x=tsne_d2v[:,0], y=tsne_d2v[:,1])
+    plot_d2v.scatter(x=x, y=y)
+
+    # hover = plot_d2v.select(dict(type=HoverTool))
+    show(plot_d2v)
+    print('plotted')
+
 
 def plot_cluster(af, doc_2d, fnames):
     cluster_centers_indices = af.cluster_centers_indices_
@@ -238,9 +271,14 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',\
      level=logging.INFO)
 
-    quick_label_tweets()
+    #uncomment to begin labelling tweets:
+    # quick_label_tweets()
 
-    exit('input ended')
+    d2file = 'doc2vec_tsne.csv'
+
+    plot_tsne(d2file)
+
+    exit()
     # What are we doing with this run of the script? 
     # 
     WRITE_OUT = False
@@ -313,11 +351,11 @@ if __name__ == '__main__':
     #
     #
     epochs = 16
-    vec_length = 32 # rule thumb, sqrt of vocab.
-    window=8
+    vec_length = 92 # rule thumb, sqrt of vocab.
+    window = 8
     vec_type = 'doc2vec'
-    negsample=6
-    sample=1e-5
+    negsample = 6
+    sample = 1e-5
     #
     # END PARAMS for Word2Vec & Doc2Vec =======================================
     #
@@ -333,9 +371,10 @@ if __name__ == '__main__':
         sentences = LabeledLineSentence(sources)
 
         if vec_type == 'doc2vec':
-            # sample=1e-4, negative=5, 
-            model = Doc2Vec(min_count=1, window=6, size=vec_length, workers=8, negative=negsample, sample=sample)
+            
+            model = Doc2Vec(min_count=1, window=6, size=vec_length, workers=8, negative=negsample, sample=sample, dm=0)
             model.build_vocab(sentences.to_array())
+
             # more is better but longer... ~ 20 ideal
             for epoch in range(epochs):
                 model.train(sentences.sentences_perm())
@@ -352,13 +391,14 @@ if __name__ == '__main__':
        
 
         
-
-        model.save('./sample_neg' + str(negsample) + '_' + \
-            str(epochs) + '_' + str(vec_length) + fout)
+        most_recent = './dm0sample_neg' + str(negsample) + '_' + \
+            str(epochs) + '_' + str(vec_length) + fout
+        model.save(most_recent)
 
     if vec_type == 'doc2vec':
         # model = Doc2Vec.load('./sample_neg' + str(negsample) + '_' + str(epochs) + '_' + str(vec_length) + fout)
-        model = Doc2Vec.load('./sample_neg6_18_92model_d2v.d2v')
+        # model = Doc2Vec.load('./sample_neg6_18_92model_d2v.d2v')
+        model = Doc2Vec.load(most_recent)
         tsne = make_tsne(model)
 
         doc_orig = model.syn0
