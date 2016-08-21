@@ -158,16 +158,18 @@ def make_tsne(model):
     # end trial code ====================
 
 
-
-    svd = TruncatedSVD(n_components=40, random_state=0)    
+    # we reduce to most important components to a number tSNE can then handle:
+    svd = TruncatedSVD(n_components=150, random_state=0, n_iter=10)    
     model_svd = svd.fit_transform(model.docvecs)
     print('svdshape', model_svd.shape) # 50k , num vector dims in params of d2v
 
-    # simple plot examples: http://alexanderfabisch.github.io/t-sne-in-scikit-learn.html 
+    # Can use simple plot examples: 
+    # http://alexanderfabisch.github.io/t-sne-in-scikit-learn.html
+    # but passing to Bokeh for now.  
     # this will iterate until no more progress is made or use n_iter= param
     # euclidean is squared euclid distance
     tsnem = TSNE(n_components=2, random_state=0, verbose=1, metric='euclidean',\
-     learning_rate=300, perplexity=40, n_iter=400)
+     learning_rate=250, perplexity=40, n_iter=400)
 
     # NB angle is tradeoff accuracy vs process time, higher is more accurate.
     trimmed = model_svd[:15000]
@@ -181,6 +183,11 @@ def make_tsne(model):
 
     np.savetxt('doc2vec_tsne_svd.csv', tsne_ready, delimiter='\t')
     plot_tsne(False, tsne_ready)
+
+    import uuid
+    unique_suffix = str(uuid.uuid4())
+
+    np.savetxt('doc2vec_tsne' + unique_suffix + ' .csv', dims_2, delimiter='\t')
     exit()
     # test code: 
     # for idx, doc in enumerate(model.docvecs):
@@ -202,6 +209,7 @@ def make_tsne(model):
     # return np.asarray(dims_2) 
 
 def plot_tsne(file=False, data=False):
+    '''use Bokeh lib to plot the tSNE 2D data'''
     x, y = ([], [])
 
     if file:
@@ -215,6 +223,7 @@ def plot_tsne(file=False, data=False):
                 if idx > 50000:
                     break
     else:
+
         x = data[:, 0]
         y = data[:, 1]
 
@@ -222,16 +231,29 @@ def plot_tsne(file=False, data=False):
     import bokeh.plotting as bp
     from bokeh.models import HoverTool, BoxSelectTool
     from bokeh.plotting import figure, show, output_file
-
+    import pandas as pd
+    
     output_file('svd_tsne.html',title='TSNE tweets data')
     plot_d2v = bp.figure(plot_width=1200, plot_height=900, title="tSNE tweets (doc2vec)",
         tools="pan,wheel_zoom,box_zoom,reset,hover,previewsave",
         x_axis_type=None, y_axis_type=None, min_border=1)
 
-    # plot_d2v.scatter(x=tsne_d2v[:,0], y=tsne_d2v[:,1])
-    plot_d2v.scatter(x=x, y=y)
+    # mkae dataframe for x and y and the original text:
+    dfcsv = join_data()
+    print(dfcsv.shape)
+    df = pd.DataFrame({'x':x, 'y': y, 'tweet':dfcsv.tweet[0:15000]})
+    print(df.shape)
+    jlpb.uprint(df.describe())
 
-    # hover = plot_d2v.select(dict(type=HoverTool))
+    # source = ColumnDataSource({'x': df.x, 'y': df.y, 'tweet': df.tweet})
+    source = bp.ColumnDataSource(data=df)
+    plot_d2v.scatter(x=x, y=y, source=source )
+
+    hover = plot_d2v.select(dict(type=HoverTool))
+    hover.tooltips = [("xval", "@x"),  ("yval", "@y"), ("text", "@tweet"), ('index', '$index')]
+
+    hover.mode = 'mouse'
+
     show(plot_d2v)
     print('plotted')
 
@@ -277,9 +299,24 @@ def plot_cluster(af, doc_2d, fnames):
     print("saved output to ./out_doc2vec.png\n")
 
 
+def join_data(files=['train_pos_frm500.txt','train_neg_frm500.txt',\
+     'test_pos_frm500.txt', 'test_neg_frm500.txt', 'unlabelled.txt']):
+    '''
+    join our training set and unlabelled set into one dataframe with one column
+    '''
+    import pandas as pd  
+    all_rows = None
+    for dummy, txt in enumerate(files):
+        df = pd.read_csv(txt, header=None,  sep=',')
+        df.rename(columns={ 0 :'tweet'}, inplace=True)
+        if isinstance(all_rows, pd.DataFrame):
+            all_rows = pd.concat([all_rows, df], axis=0)
+        else:
+            all_rows = df
+    return all_rows 
+
 
 if __name__ == '__main__':   
-
 
     import logging
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',\
@@ -288,22 +325,20 @@ if __name__ == '__main__':
     #uncomment to begin labelling tweets:
     # quick_label_tweets()
 
-    d2file = 'doc2vec_tsne.csv'
+    # d2file = 'doc2vec_tsne_svd.csv'
+    # plot_tsne(d2file) # add 1 to the index to get the line number..
 
-    # plot_tsne(d2file)
-
-    # exit()
-    # What are we doing with this run of the script? 
-    # 
+    # IMPORTANT: Set the mode here for this run of the script:
     WRITE_OUT = False
-    CREATE_MODEL = False # set false to load the model with chosen parameters
+    CREATE_MODEL = True # set false to load the model with chosen parameters
+
 
     fout = 'model_d2v.d2v' #output filename suffix
 
     # train and test sets set up:
     files = ['train_pos_frm500.txt','train_neg_frm500.txt',\
      'test_pos_frm500.txt', 'test_neg_frm500.txt', 'unlabelled.txt']
-    
+
     ftrainpos = open(files[0], 'a', encoding='utf-8') 
     ftrainneg = open(files[1], 'a', encoding='utf-8')
     ftestpos = open(files[2], 'a', encoding='utf-8') 
@@ -364,11 +399,11 @@ if __name__ == '__main__':
     # PARAMS for Word2Vec & Doc2Vec =======================================
     #
     #
-    epochs = 16
-    vec_length = 92 # rule thumb, sqrt of vocab.
+    epochs = 20
+    vec_length = 100 # rule thumb, sqrt of vocab.
     window = 8
     vec_type = 'doc2vec'
-    negsample = 6
+    negative = 6
     sample = 1e-5
     #
     # END PARAMS for Word2Vec & Doc2Vec =======================================
@@ -385,8 +420,8 @@ if __name__ == '__main__':
         sentences = LabeledLineSentence(sources)
 
         if vec_type == 'doc2vec':
-            
-            model = Doc2Vec(min_count=1, window=6, size=vec_length, workers=8, negative=negsample, sample=sample, dm=0)
+            #  
+            model = Doc2Vec(min_count=1, window=window, negative=negative, size=vec_length, workers=8, sample=sample, dm=0)
             model.build_vocab(sentences.to_array())
 
             # more is better but longer... ~ 20 ideal
@@ -405,17 +440,18 @@ if __name__ == '__main__':
        
 
         
-        most_recent = './dm0sample_neg' + str(negsample) + '_' + \
+        most_recent = './dm0sample_neg' + str(negative) + '_' + \
             str(epochs) + '_' + str(vec_length) + fout
         model.save(most_recent)
 
     if vec_type == 'doc2vec':
-        # model = Doc2Vec.load('./sample_neg' + str(negsample) + '_' + str(epochs) + '_' + str(vec_length) + fout)
+        # model = Doc2Vec.load('./sample_neg' + str(negative) + '_' + str(epochs) + '_' + str(vec_length) + fout)
         # model = Doc2Vec.load('./sample_neg6_18_92model_d2v.d2v')
         try:
             most_recent
         except:
             most_recent = 'dm0sample_neg6_16_92model_d2v.d2v'
+        print('model used:', most_recent)
         model = Doc2Vec.load(most_recent)
         tsne = make_tsne(model)
 
