@@ -404,20 +404,26 @@ if __name__ == '__main__':
     #
     #####
     if CREATE_MODEL:
-        
+
+        # sources with tweets in for unsupervised trainging of d2v model.
         sources = { files[4]:'TRAIN_UNS'} 
+        # using just unlabelled for now 
         '''files[0]:'TRAIN_POS',\
         files[1]:'TRAIN_NEG',\
         files[2]:'TEST_POS',\
         files[3]:'TEST_NEG',\
         '''
-                    
 
+
+        # FIXME: should convert LabeleledLineSentence to Tagged Document
+        # since it is deprecated.
+        # 
         sentences = LabeledLineSentence(sources)
 
         # dynamically get the workers for this machine:
         import multiprocessing
         cores = multiprocessing.cpu_count()
+
 
         if vec_type == 'doc2vec':
             #  
@@ -427,9 +433,12 @@ if __name__ == '__main__':
              workers=cores)
             model.build_vocab(sentences.to_array())
 
-            # more is better but longer... ~ 20 ideal
+            # training according to number of Epochs required:
             for epoch in range(epochs):
+                # this shuffles the data around to make this balanced in terms of the 
+                # learning rate of the procedure. 
                 model.train(sentences.sentences_perm())
+
         else:
             model = Word2Vec(min_count=10, window=window, size=vec_length, workers=cores)
             model.build_vocab(sentences)
@@ -440,25 +449,30 @@ if __name__ == '__main__':
                 gets randomised
                 ''' 
                 model.train(sentences.sentences_perm())
-       
 
-        
+        # Save the model to disk, including its params:
         most_recent = './default_sample_neg' + str(negative) + '_' + \
             str(epochs) + '_' + str(vec_length) + fout
         model.save(most_recent)
 
+
+    # Load model stage:
     if vec_type == 'doc2vec':
-        # model = Doc2Vec.load('./sample_neg' + str(negative) + '_' + str(epochs) + '_' + str(vec_length) + fout)
-        # model = Doc2Vec.load('./sample_neg6_18_92model_d2v.d2v')
+        '''
+        Load in the model and pass to tSNE
+        '''
         try:
             most_recent
         except:
-            most_recent = load_only
+            most_recent = load_only 
+       
         print('model used:', most_recent)
         model = Doc2Vec.load(most_recent)
+
+        # Dimensionality Reduction using tSNE
         tsne = make_tsne(model)
 
-        doc_orig = model.syn0
+        # doc_orig = model.syn0
         # numpy.savetxt('doc2vec_model.csv', doc_orig, delimiter='\t')
         # --  a dict (like `vocab` in Word2Vec) ..
         # where the keys are all known string tokens (aka 'doctags')
@@ -482,6 +496,7 @@ if __name__ == '__main__':
         print(df.tail())
 
     else:
+        # TODO: word2Vec method not implemented yet.
         model = Word2Vec.load('./' + str(epochs) + '_' + str(vec_length) + fout)
 
     
