@@ -128,7 +128,7 @@ def quick_label_tweets():
 
 def make_tsne(model):
     '''
-    problematic right now - too many rows being passed and TSNE doesnt like it.
+    do an SVD of the model of Doc2Vec, then continue to tSNE with 2d projection.
     '''
     import numpy as np
     from sklearn.manifold import TSNE
@@ -138,30 +138,24 @@ def make_tsne(model):
     from sklearn.cluster import KMeans
     import matplotlib.pyplot as plt
 
-    dims_2 = []
     labels = list(model.docvecs.doctags.keys())
+    print(model.docvecs.most_similar(20))
 
+    z = list(model.docvecs)
+
+    print(len(z))
+    z = z[:15000]
+    print('shape')
     
-
-    # trial code: 
-    # https://github.com/innainu/blog/blob/master/gizmodo_doc2vec/notebooks/doc2vec_gizmodo.ipynb
-    # tsne_model = TSNE(n_components=2, random_state=0, verbose = 1, init= "pca")
-    # tsne_articles_2D = tsne_model.fit_transform(model.docvecs)
-
-    # kmeans = KMeans(5, n_jobs=-1)
-    # top_cluster_results = kmeans.fit_predict(tsne_articles_2D[first_idx])
-
-    # plt.scatter([x[0] for x in tsne_articles_2D[first_idx]],\
-    #  [x[1] for x in tsne_articles_2D[first_idx]], c=top_cluster_results)
-
-    # exit()
-    # end trial code ====================
-
-
     # we reduce to most important components to a number tSNE can then handle:
-    svd = TruncatedSVD(n_components=150, random_state=0, n_iter=10)    
+    svd = TruncatedSVD(n_components=50, random_state=0, n_iter=10)    
     model_svd = svd.fit_transform(model.docvecs)
     print('svdshape', model_svd.shape) # 50k , num vector dims in params of d2v
+
+    import uuid
+    unique_suffix = str(uuid.uuid4())
+    # save the SVD
+    np.savetxt('doc2vec_tsne_svd' + unique_suffix + '.csv', model_svd, delimiter='\t')
 
     # Can use simple plot examples: 
     # http://alexanderfabisch.github.io/t-sne-in-scikit-learn.html
@@ -169,11 +163,12 @@ def make_tsne(model):
     # this will iterate until no more progress is made or use n_iter= param
     # euclidean is squared euclid distance
     tsnem = TSNE(n_components=2, random_state=0, verbose=1, metric='euclidean',\
-     learning_rate=250, perplexity=40, n_iter=400)
+     learning_rate=100, n_iter=400)
 
     # NB angle is tradeoff accuracy vs process time, higher is more accurate.
     trimmed = model_svd[:15000]
-    tsne_ready = tsnem.fit_transform(trimmed)
+    trimmed_nosvd = z
+    tsne_ready = tsnem.fit_transform(trimmed_nosvd)
 
     print(tsne_ready.shape)
     try:
@@ -181,13 +176,19 @@ def make_tsne(model):
     except:
         pass
 
-    np.savetxt('doc2vec_tsne_svd.csv', tsne_ready, delimiter='\t')
+    # save the tSNE
+    np.savetxt('doc2vec_tsne' + unique_suffix + ' .csv', tsne_ready, delimiter='\t')
+
     plot_tsne(False, tsne_ready)
 
-    import uuid
-    unique_suffix = str(uuid.uuid4())
+    # Tentative KMeans clustering code:
+    # kmeans = KMeans(5, n_jobs=-1)
+    # top_cluster_results = kmeans.fit_predict(tsne_articles_2D[first_idx])
 
-    np.savetxt('doc2vec_tsne' + unique_suffix + ' .csv', dims_2, delimiter='\t')
+    # plt.scatter([x[0] for x in tsne_articles_2D[first_idx]],\
+    #  [x[1] for x in tsne_articles_2D[first_idx]], c=top_cluster_results)
+
+
     exit()
     # test code: 
     # for idx, doc in enumerate(model.docvecs):
@@ -195,18 +196,8 @@ def make_tsne(model):
     #         print('doc: ', idx)
     #     dims_2.append(TSNE( n_components=2, random_state=0, verbose=1, metric='euclidean').fit_transform(doc).tolist()[0])
 
-    # cache tsne as CSV
-    print(dims_2[0, :])
-    np.savetxt('doc2vec_tsne.csv', dims_2, delimiter='\t')
-    plot_tsne(dims_2)
+    
 
-    # print('clusters:')
-    # affp = AffinityPropagation().fit(dims_2)
-
-    # print('Preparing plot...')
-    # plot_cluster(affp, dims_2, labels)
-
-    # return np.asarray(dims_2) 
 
 def plot_tsne(file=False, data=False):
     '''use Bokeh lib to plot the tSNE 2D data'''
@@ -322,16 +313,19 @@ if __name__ == '__main__':
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',\
      level=logging.INFO)
 
+    ## VARIOUS maintenance tasks:
     #uncomment to begin labelling tweets:
     # quick_label_tweets()
 
     # d2file = 'doc2vec_tsne_svd.csv'
     # plot_tsne(d2file) # add 1 to the index to get the line number..
+    ## END VARIOUS mainitenace tasks
+
 
     # IMPORTANT: Set the mode here for this run of the script:
     WRITE_OUT = False
-    CREATE_MODEL = True # set false to load the model with chosen parameters
-
+    CREATE_MODEL = False # set false to load the model with chosen parameters
+    load_only = 'default_sample_neg5_16_104model_d2v.d2v' # set to the model you wish to load
 
     fout = 'model_d2v.d2v' #output filename suffix
 
@@ -399,36 +393,45 @@ if __name__ == '__main__':
     # PARAMS for Word2Vec & Doc2Vec =======================================
     #
     #
-    epochs = 20
-    vec_length = 100 # rule thumb, sqrt of vocab.
+    epochs = 16
+    vec_length = 104 # rule thumb, sqrt of vocab.
     window = 8
     vec_type = 'doc2vec'
-    negative = 6
-    sample = 1e-5
+    negative = 5
+    sample = 1e-4
     #
     # END PARAMS for Word2Vec & Doc2Vec =======================================
     #
     #####
     if CREATE_MODEL:
         
-        sources = { files[0]:'TRAIN_POS',\
-                    files[1]:'TRAIN_NEG',\
-                    files[2]:'TEST_POS',\
-                    files[3]:'TEST_NEG',\
-                    files[4]:'TRAIN_UNS'}
+        sources = { files[4]:'TRAIN_UNS'} 
+        '''files[0]:'TRAIN_POS',\
+        files[1]:'TRAIN_NEG',\
+        files[2]:'TEST_POS',\
+        files[3]:'TEST_NEG',\
+        '''
+                    
 
         sentences = LabeledLineSentence(sources)
 
+        # dynamically get the workers for this machine:
+        import multiprocessing
+        cores = multiprocessing.cpu_count()
+
         if vec_type == 'doc2vec':
             #  
-            model = Doc2Vec(min_count=1, window=window, negative=negative, size=vec_length, workers=8, sample=sample, dm=0)
+            # model = Doc2Vec(min_count=1, window=window, negative=negative, size=vec_length,\
+            #  workers=cores, sample=sample, dm=1, dm_concat=1)
+            model = Doc2Vec(min_count=1,size=vec_length,\
+             workers=cores)
             model.build_vocab(sentences.to_array())
 
             # more is better but longer... ~ 20 ideal
             for epoch in range(epochs):
                 model.train(sentences.sentences_perm())
         else:
-            model = Word2Vec(min_count=10, window=window, size=vec_length, workers=8)
+            model = Word2Vec(min_count=10, window=window, size=vec_length, workers=cores)
             model.build_vocab(sentences)
             # more is better but longer... ~ 20 ideal
             for epoch in range(epochs):
@@ -440,7 +443,7 @@ if __name__ == '__main__':
        
 
         
-        most_recent = './dm0sample_neg' + str(negative) + '_' + \
+        most_recent = './default_sample_neg' + str(negative) + '_' + \
             str(epochs) + '_' + str(vec_length) + fout
         model.save(most_recent)
 
@@ -450,7 +453,7 @@ if __name__ == '__main__':
         try:
             most_recent
         except:
-            most_recent = 'dm0sample_neg6_16_92model_d2v.d2v'
+            most_recent = load_only
         print('model used:', most_recent)
         model = Doc2Vec.load(most_recent)
         tsne = make_tsne(model)
