@@ -181,26 +181,12 @@ def make_tsne(model):
 
     plot_tsne(False, tsne_ready)
 
-    # Tentative KMeans clustering code:
-    # kmeans = KMeans(5, n_jobs=-1)
-    # top_cluster_results = kmeans.fit_predict(tsne_articles_2D[first_idx])
-
-    # plt.scatter([x[0] for x in tsne_articles_2D[first_idx]],\
-    #  [x[1] for x in tsne_articles_2D[first_idx]], c=top_cluster_results)
-
-
-    exit()
-    # test code: 
-    # for idx, doc in enumerate(model.docvecs):
-    #     if idx % 10000 == 0:
-    #         print('doc: ', idx)
-    #     dims_2.append(TSNE( n_components=2, random_state=0, verbose=1, metric='euclidean').fit_transform(doc).tolist()[0])
-
-    
 
 
 def plot_tsne(file=False, data=False):
-    '''use Bokeh lib to plot the tSNE 2D data'''
+    '''
+    use Bokeh lib to plot the tSNE projection into 2D data viz
+    '''
     x, y = ([], [])
 
     if file:
@@ -229,7 +215,7 @@ def plot_tsne(file=False, data=False):
         tools="pan,wheel_zoom,box_zoom,reset,hover,previewsave",
         x_axis_type=None, y_axis_type=None, min_border=1)
 
-    # mkae dataframe for x and y and the original text:
+    # make a pandas dataframe for x and y and the original text:
     dfcsv = join_data()
     print(dfcsv.shape)
     df = pd.DataFrame({'x':x, 'y': y, 'tweet':dfcsv.tweet[0:15000]})
@@ -246,54 +232,14 @@ def plot_tsne(file=False, data=False):
     hover.mode = 'mouse'
 
     show(plot_d2v)
-    print('plotted')
-
-
-def plot_cluster(af, doc_2d, fnames):
-    cluster_centers_indices = af.cluster_centers_indices_
-    labels = af.labels_
-    n_clusters_ = len(cluster_centers_indices)
-
-    #print(cluster_centers_indices)
-    #print(len(af.labels_))
-    #print(len(labels))
-    #print(n_clusters_)
-
-    plt.figure(num=1, figsize=(80, 80), facecolor="w", edgecolor="k")
-    colors = cycle("bgrcmyk")
-
-    for k, col in zip(range(n_clusters_), colors):
-        class_members = labels == k         # class_members ist array von boolschen werten, beschreibt cluster membership
-        cluster_center = doc_2d[cluster_centers_indices[k]]
-
-        fnames_cluster = []
-        fname_indices = [i for i, x in enumerate(class_members) if x]
-        for i in fname_indices: fnames_cluster.append(fnames[i])
-
-        #print(fnames_cluster)
-        #print(len(class_members))
-        #print(len(fnames))
-        #print(cluster_center)
-
-        plt.plot(doc_2d[class_members, 0], doc_2d[class_members, 1], col + ".")
-        plt.plot(cluster_center[0], cluster_center[1], "o", markerfacecolor=col, markersize=20)
-
-        #plt.annotate(fnames[labels[k]], (cluster_center[0], cluster_center[1]), xytext=(0, -8),
-        #        textcoords="offset points", va="center", ha="left")
-
-        for x, fname in zip(doc_2d[class_members], fnames_cluster):
-            plt.plot([cluster_center[0], x[0]], [cluster_center[1], x[1]], col, linestyle='--', linewidth=1)
-            plt.annotate(fname, (x[0], x[1]), xytext=(0, -8),
-                        textcoords="offset points", va="center", ha="left")
-
-    plt.savefig("out_doc2vec.png", facecolor="w", dpi=90)
-    print("saved output to ./out_doc2vec.png\n")
+    print('plotted; done.')
 
 
 def join_data(files=['train_pos_frm500.txt','train_neg_frm500.txt',\
      'test_pos_frm500.txt', 'test_neg_frm500.txt', 'unlabelled.txt']):
     '''
-    join our training set and unlabelled set into one dataframe with one column
+    Join our training set and unlabelled set into one dataframe 
+    with one column
     '''
     import pandas as pd  
     all_rows = None
@@ -307,12 +253,37 @@ def join_data(files=['train_pos_frm500.txt','train_neg_frm500.txt',\
     return all_rows 
 
 
+def tokenise_csv(file='buffer10k4002set.csv'):
+    '''
+    convert a csv of tweets into tokenised csv saved with new filename.
+    '''
+    import csv
+   
+    # open an output file to save to:
+    prefix = 'tokens_'
+    output = open(prefix + file, 'a', encoding='utf8')
+
+    # open a CSV and read all its lines
+    with open(file, encoding='utf-8') as csv_file:
+
+        docs = csv.reader(csv_file, delimiter=',')
+        for idx, doc in enumerate(docs):
+        
+            # normalise tweet text
+            text = prepare.normalise_tweet(doc[1], unicode_replace=False)
+            
+            # write to file with label
+            output.write(doc[0] + ',' + text + '\n')
+           
+
+
 if __name__ == '__main__':   
 
     import logging
     logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s',\
      level=logging.INFO)
 
+    ##
     ## VARIOUS maintenance tasks:
     #uncomment to begin labelling tweets:
     # quick_label_tweets()
@@ -320,7 +291,7 @@ if __name__ == '__main__':
     # d2file = 'doc2vec_tsne_svd.csv'
     # plot_tsne(d2file) # add 1 to the index to get the line number..
     ## END VARIOUS mainitenace tasks
-
+    ##
 
     # IMPORTANT: Set the mode here for this run of the script:
     WRITE_OUT = False
