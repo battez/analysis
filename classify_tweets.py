@@ -157,14 +157,16 @@ ndf = ndf[[u'label',u'text']]
 print(ndf.tail())
 
 ## join these two: 
-tdf = pd.concat([df, ndf], axis=0)
+zdf = pd.concat([df, ndf], axis=0)
 
 
 # trying this 4002 row sized labelled set instead:
-tdf = None
-tdf = pd.read_csv('tokens_buffer10k4002set.csv')
+xdf = pd.read_csv('tokens_buffer10k4002set.csv')
+xdf = xdf[[u'label',u'text']]
 
-tdf = tdf[[u'label',u'text']]
+# mix 500 + 4002 labelled:
+tdf = pd.concat([zdf, xdf], axis=0)
+# make the string a list (ie split the string into words, for D2V)
 tdf.loc[:,'text'] = tdf.loc[:,'text'].map(split)
 
 print(tdf.tail())
@@ -177,8 +179,9 @@ tdf = tdf.sample(frac=1, random_state=np.random.RandomState(seed)).\
 print('Tail labelled set', tdf.tail())
 print('Dims tdf',tdf.shape)
 
-udf = pd.read_csv('unlabelled10k.csv')
+udf = pd.read_csv('unlabelled.csv')
 udf = udf[[u'text']]
+udf = udf.iloc[:20000]
 udf.loc[:,'text'] = udf.loc[:,'text'].map(split)
 print('Tail Unlabelled set',  udf.tail())
 
@@ -191,7 +194,7 @@ print(tdf.size)
 total_num_unlabelled = udf.size
 
 # split for the needed test and training data 
-test_num = 400
+test_num = 450
 print('Test set size', test_num)
 training_num = total_num - test_num
 print('Training set size', training_num)
@@ -217,21 +220,20 @@ import multiprocessing
 cores = multiprocessing.cpu_count()
 
 # build doc2vec models if True!
-most_recent = 'd2v_model_'
+most_recent = 'd2v_mod_win10_'
 model_DM, model_DBOW = (None, None)
 
 # change below line to True to load in new models:
-if False:
-    model_DM = Doc2Vec(size=400, window=8, min_count=1, sample=1e-4,\
+if True:
+    model_DM = Doc2Vec(size=400, window=10, min_count=1, sample=1e-4,\
      negative=5, workers=cores,  dm=1, dm_concat=1 )
-    model_DBOW = Doc2Vec(size=400, window=8, min_count=1, sample=1e-4,\
+    model_DBOW = Doc2Vec(size=400, window=10, min_count=1, sample=1e-4,\
      negative=5, workers=cores, dm=0)
 
     # construct the vocabs for our models
     model_DM.build_vocab(training_doc)
     model_DBOW.build_vocab(training_doc)
 
-    
     fout = 'DM.d2v'
     model_DM.save(most_recent + fout)
 
@@ -241,6 +243,7 @@ if False:
 else:
     fout = 'DM.d2v'
     model_DM = Doc2Vec.load(most_recent + fout)
+
     fout = 'DBOW.d2v'
     model_DBOW = Doc2Vec.load(most_recent + fout)
 
@@ -273,18 +276,18 @@ train_regressors = sm.add_constant(train_regressors)
 
 # Uncomment to use this for multiclass log. regression:
 # Todo: add class in dataset for brexit topic
-# predictor = LogisticRegression(multi_class='multinomial',solver='lbfgs')
+# model_logreg = LogisticRegression(multi_class='multinomial',solver='lbfgs')
 
 # Train a two-class log. regression classifier, and use
 # scikit parameter to adjust foru our imbalanced dataset:
-predictor = LogisticRegression(class_weight = "auto")
-predictor.fit(train_regressors, train_targets) # first is x-axis, targets the y
+model_logreg = LogisticRegression(class_weight="balanced", C=0.05, n_jobs=-1)
+model_logreg.fit(train_regressors, train_targets) # first is x-axis, targets the y
 
 
 accuracies = []
 test_regressors = [list(model_DM.docvecs[id])+list(model_DBOW.docvecs[id]) for id in testID]
 test_regressors = sm.add_constant(test_regressors)
-test_predictions = predictor.predict(test_regressors)
+test_predictions = model_logreg.predict(test_regressors)
 accuracy = 0
 
 for i in range(0, test_num):
@@ -303,7 +306,7 @@ confusion_mtx = confusion_matrix(test_predictions,(tdf.loc[testID,u'label']), la
 show_confusion_matrix(confusion_mtx, labels)
 
 
-train_predictions = predictor.predict(train_regressors)
+train_predictions = model_logreg.predict(train_regressors)
 accuracy = 0
 for i in range(0,len(train_targets)):
     if train_predictions[i] == train_targets[i]:
