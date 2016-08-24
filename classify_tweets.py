@@ -181,11 +181,11 @@ print('Dims tdf',tdf.shape)
 
 udf = pd.read_csv('unlabelled.csv')
 udf = udf[[u'text']]
-udf = udf.iloc[:20000]
+udf = udf.iloc[:30000]
 udf.loc[:,'text'] = udf.loc[:,'text'].map(split)
 print('Tail Unlabelled set',  udf.tail())
 
-
+# Doc2Vec for high-dim vectors in model(s) for each tweet:
 from gensim.models.doc2vec import TaggedDocument, Doc2Vec
 
 total_num = int(tdf.size/2)
@@ -225,19 +225,19 @@ model_DM, model_DBOW = (None, None)
 
 # change below line to True to load in new models:
 if True:
-    model_DM = Doc2Vec(size=400, window=10, min_count=1, sample=1e-4,\
+    model_DM = Doc2Vec(size=300, window=10, min_count=1, sample=1e-4,\
      negative=5, workers=cores,  dm=1, dm_concat=1 )
-    model_DBOW = Doc2Vec(size=400, window=10, min_count=1, sample=1e-4,\
+    model_DBOW = Doc2Vec(size=300, window=10, min_count=1, sample=1e-4,\
      negative=5, workers=cores, dm=0)
 
     # construct the vocabs for our models
     model_DM.build_vocab(training_doc)
     model_DBOW.build_vocab(training_doc)
 
-    fout = 'DM.d2v'
+    fout = '300w8se4DM.d2v'
     model_DM.save(most_recent + fout)
 
-    fout = 'DBOW.d2v'
+    fout = '300w8se4DBOW.d2v'
     model_DBOW.save(most_recent + fout)
 
 else:
@@ -251,7 +251,7 @@ else:
 # train the two different methods of the Doc2Vec algorithm:
 # NB DBOW is more similar to the recommended skip-gram of 
 # Word2Vec by the original paper's authors.  
-for it in range(0,10):
+for it in range(0,20):
     random.shuffle(doc2vec_train_id)
     training_doc = [documents_all[id] for id in doc2vec_train_id]
     model_DM.train(training_doc)
@@ -280,8 +280,17 @@ train_regressors = sm.add_constant(train_regressors)
 
 # Train a two-class log. regression classifier, and use
 # scikit parameter to adjust foru our imbalanced dataset:
-model_logreg = LogisticRegression(class_weight="balanced", C=0.05, n_jobs=-1)
+model_logreg = LogisticRegression(class_weight="balanced", n_jobs=-1)
 model_logreg.fit(train_regressors, train_targets) # first is x-axis, targets the y
+
+## When ready: use to save a nice model:
+from sklearn.externals import joblib
+dir_model = 'C:/Users/johnbarker/Downloads/'
+filename_model = 'logreg_model.pkl'
+joblib.dump(model_logreg, dir_model + filename_model, compress=9)  # try compress
+
+# When needed, test reloading with
+#  = joblib.load(dir_model + filename_model) 
 
 
 accuracies = []
