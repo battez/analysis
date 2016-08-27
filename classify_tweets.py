@@ -25,6 +25,7 @@ import jlpb
 seed = 0
 seed = 99 # for reproducibility 
 seed = 20
+seed = 50
 
 def split(text):
     '''
@@ -213,7 +214,7 @@ training_doc = [documents_all[id] for id in doc2vec_train_id]
 
 # class labels 
 class_labels = tdf.loc[:,'label']
-print('All class labels:', set(class_labels))
+
 
 # find out max system workers from the cores:
 import multiprocessing
@@ -234,10 +235,10 @@ if True:
     model_DM.build_vocab(training_doc)
     model_DBOW.build_vocab(training_doc)
 
-    fout = '300w8se4DM.d2v'
+    fout = 'seed50_50ep300w10se4DM.d2v'
     model_DM.save(most_recent + fout)
 
-    fout = '300w8se4DBOW.d2v'
+    fout = 'seed50_50ep300w10se4DBOW.d2v'
     model_DBOW.save(most_recent + fout)
 
 else:
@@ -251,7 +252,7 @@ else:
 # train the two different methods of the Doc2Vec algorithm:
 # NB DBOW is more similar to the recommended skip-gram of 
 # Word2Vec by the original paper's authors.  
-for it in range(0,20):
+for it in range(0,60):
     random.shuffle(doc2vec_train_id)
     training_doc = [documents_all[id] for id in doc2vec_train_id]
     model_DM.train(training_doc)
