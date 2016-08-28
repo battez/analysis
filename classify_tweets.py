@@ -22,27 +22,26 @@ sys.path.insert(0, SCRAPEDIR)
 # get some handy functions 
 import jlpb
 
-seed = 0
-seed = 99 # for reproducibility 
-seed = 20
-seed = 50
+
+import time
+start = time.perf_counter()
+
 
 def split(text):
     '''
-    :text : string; a tweet (already tokenised)
-    :return : list; words
+    text string; a tweet (already tokenised)
+    returns list; words
     '''
     words = text.split(' ')
-
     return words
 
 
-def show_confusion_matrix(C,class_labels=['0','1']):
+def show_confusion_matrix(C,class_labs=['0','1']):
     '''
     credit: http://notmatthancock.github.io/2015/10/28/confusion-matrix.html
     Pretty-plot scikit learn confusion matrices nicely:
     C: ndarray, shape (2,2) as given by scikit-learn confusion_matrix function
-    class_labels: list of strings, default simply labels 0 and 1.
+    class_labs: list of strings, default simply labels 0 and 1.
 
     Draws confusion matrix with associated metrics.
     '''
@@ -73,7 +72,7 @@ def show_confusion_matrix(C,class_labels=['0','1']):
     # Set xlabels
     ax.set_xlabel('Predicted Label', fontsize=16)
     ax.set_xticks([0,1,2])
-    ax.set_xticklabels(class_labels + [''])
+    ax.set_xticklabels(class_labs + [''])
     ax.xaxis.set_label_position('top')
     ax.xaxis.tick_top()
     # These coordinate might require some tinkering. Ditto for y, below.
@@ -81,7 +80,7 @@ def show_confusion_matrix(C,class_labels=['0','1']):
 
     # Set ylabels
     ax.set_ylabel('True Label', fontsize=16, rotation=90)
-    ax.set_yticklabels(class_labels + [''],rotation=90)
+    ax.set_yticklabels(class_labs + [''],rotation=90)
     ax.set_yticks([0,1,2])
     ax.yaxis.set_label_coords(-0.09,0.65)
 
@@ -148,46 +147,73 @@ def show_confusion_matrix(C,class_labels=['0','1']):
     plt.show()
 
 
+'''
+We will use a Doc2Vec model to then train a classifier
+(Logistic Regression currently) to try to classify relevant
+tweets from irrelevant ones for topic of flooding.
 
+'''
+# Set up some key variables for the process of model training:
+# Use a random seed for reproducibility 
+seed = 0
+seed = 99 
+seed = 20
+seed = 40 
+# This can take a LOT of time if high! but should give better
+# performance for the classifier. 
+epochs = 16 
+
+
+##
+##
+# Make Pandas dataframes from labelled data and combine to 
+# a single dataframe that we then split into test and training set:
+#
 df = pd.read_csv('pos_frm500.csv')
 df = df[[u'label',u'text']]
-print(df.tail())
 
 ndf = pd.read_csv('neg_frm500.csv')
 ndf = ndf[[u'label',u'text']]
-print(ndf.tail())
 
-## join these two: 
+## combine these two together: 
 zdf = pd.concat([df, ndf], axis=0)
 
 
-# trying this 4002 row sized labelled set instead:
+# load this further 4002 labelled rows :
 xdf = pd.read_csv('tokens_buffer10k4002set.csv')
 xdf = xdf[[u'label',u'text']]
 
-# mix 500 + 4002 labelled:
+# Combine these 500 + 4002 labelled:
 tdf = pd.concat([zdf, xdf], axis=0)
-# make the string a list (ie split the string into words, for D2V)
+
+# make the string a list 
+# NB needed in D2V gensim: (ie split the string into words, for D2V)
 tdf.loc[:,'text'] = tdf.loc[:,'text'].map(split)
 
-print(tdf.tail())
+print('head:20', tdf.head(20))
+print('tail:20', tdf.tail(20))
 print('tdf',tdf.shape)
 
-# Randomise the order of the Labelled set rows (using a seed for reproudicibility)
+# Randomise the order of the Labelled set rows 
+# (using a seed for reproducibility)
 tdf = tdf.sample(frac=1, random_state=np.random.RandomState(seed)).\
     reset_index(drop=True)
 
-print('Tail labelled set', tdf.tail())
+print('Head labelled set', tdf.head(30))
+print('Tail labelled set', tdf.tail(30))
 print('Dims tdf',tdf.shape)
 
+# Load in our unlabelled data set of tweets to build the d2v vocabulary.
 udf = pd.read_csv('unlabelled.csv')
 udf = udf[[u'text']]
-udf = udf.iloc[:30000]
+udf = udf.iloc[:50000]
 udf.loc[:,'text'] = udf.loc[:,'text'].map(split)
-print('Tail Unlabelled set',  udf.tail())
+#print('Tail Unlabelled set',  udf.tail())
 
-# Doc2Vec for high-dim vectors in model(s) for each tweet:
+# Reference: https://radimrehurek.com/gensim/models/doc2vec.html 
+# Gensim Doc2Vec for high-dim vectors in model(s) for each tweet:
 from gensim.models.doc2vec import TaggedDocument, Doc2Vec
+
 
 total_num = int(tdf.size/2)
 print(total_num)
@@ -195,6 +221,8 @@ print(tdf.size)
 total_num_unlabelled = udf.size
 
 # split for the needed test and training data 
+# maintain approx. a 9:1 ratio of training:test,
+# as we have relatively little labelled data.
 test_num = 450
 print('Test set size', test_num)
 training_num = total_num - test_num
@@ -209,39 +237,43 @@ documents_all = documents + documents_unlabelled
 doc2vec_train_id = list(range(0, total_num + total_num_unlabelled))
 random.shuffle(doc2vec_train_id)
 
-# training documents 
+# training documents for Doc2Vec 
 training_doc = [documents_all[id] for id in doc2vec_train_id]
 
-# class labels 
+# get all class labels 
 class_labels = tdf.loc[:,'label']
 
-
-# find out max system workers from the cores:
+print('tail 20 classLabels', class_labels.tail(20))
+# find out max system workers from the cores
+# so we can make use of the max CPU:
 import multiprocessing
 cores = multiprocessing.cpu_count()
 
-# build doc2vec models if True!
-most_recent = 'd2v_mod_win10_'
+# build fresh doc2vec models if True set below!
+# (otherwise load from disk)
+most_recent = 'd2v_mod_win5_'
 model_DM, model_DBOW = (None, None)
 
 # change below line to True to load in new models:
 if True:
-    model_DM = Doc2Vec(size=300, window=10, min_count=1, sample=1e-4,\
+    # Parameters can be adjusted to try to get better accuracy from classifier.
+    model_DM = Doc2Vec(size=152, window=5, min_count=1, sample=1e-4,\
      negative=5, workers=cores,  dm=1, dm_concat=1 )
-    model_DBOW = Doc2Vec(size=300, window=10, min_count=1, sample=1e-4,\
+    model_DBOW = Doc2Vec(size=152, window=5, min_count=1, sample=1e-4,\
      negative=5, workers=cores, dm=0)
 
     # construct the vocabs for our models
     model_DM.build_vocab(training_doc)
     model_DBOW.build_vocab(training_doc)
 
-    fout = 'seed50_50ep300w10se4DM.d2v'
+    fout = 'c1200_50kseed40_16ep152se4DM.d2v'
     model_DM.save(most_recent + fout)
 
-    fout = 'seed50_50ep300w10se4DBOW.d2v'
+    fout = 'c1200_50kseed40_16ep152se4DBOW.d2v'
     model_DBOW.save(most_recent + fout)
 
 else:
+    # Load Doc2Vec model from disk:
     fout = 'DM.d2v'
     model_DM = Doc2Vec.load(most_recent + fout)
 
@@ -252,7 +284,12 @@ else:
 # train the two different methods of the Doc2Vec algorithm:
 # NB DBOW is more similar to the recommended skip-gram of 
 # Word2Vec by the original paper's authors.  
-for it in range(0,60):
+
+for it in range(0,epochs):
+    # progress as this takes a long time:
+    if (it % 10) == 0:
+        print('epoch ' + str(it) + ' of ' + str(epochs))
+
     random.shuffle(doc2vec_train_id)
     training_doc = [documents_all[id] for id in doc2vec_train_id]
     model_DM.train(training_doc)
@@ -263,14 +300,24 @@ Use Logistic Regression and train a classifier from Doc2Vec model and labelled d
 
 Then output plots of confusion matrices of the accuracy of the model applied to 
 test data.
+
+Credit: https://www.zybuluo.com/HaomingJiang/note/462804
+NB Adapted methodology from a tutorial in Doc2Vec -- URL above -- to scaffold 
+this classification.
+
 '''
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix
 import statsmodels.api as sm
 random.seed(1212)
 new_index = random.sample(range(0,total_num),total_num)
+
+# set the IDs for the test set:
 testID = new_index[-test_num:]
+
+# set the IDs for the training set
 trainID = new_index[:-test_num]
+
 train_targets, train_regressors = zip(*[(class_labels[id], \
     list(model_DM.docvecs[id]) + list(model_DBOW.docvecs[id])) for id in trainID])
 train_regressors = sm.add_constant(train_regressors)
@@ -281,14 +328,16 @@ train_regressors = sm.add_constant(train_regressors)
 
 # Train a two-class log. regression classifier, and use
 # scikit parameter to adjust foru our imbalanced dataset:
-model_logreg = LogisticRegression(class_weight="balanced", n_jobs=-1)
+# class_weight="balanced", 
+# use default L2 penalty, tolerance speeds training time, 
+model_logreg = LogisticRegression(C=1200, penalty='l2', tol=0.0001, n_jobs=-1)
 model_logreg.fit(train_regressors, train_targets) # first is x-axis, targets the y
 
 ## When ready: use to save a nice model:
 from sklearn.externals import joblib
 dir_model = 'C:/Users/johnbarker/Downloads/'
 filename_model = 'logreg_model.pkl'
-joblib.dump(model_logreg, dir_model + filename_model, compress=9)  # try compress
+joblib.dump(model_logreg, dir_model + filename_model)  # try compress
 
 # When needed, test reloading with
 #  = joblib.load(dir_model + filename_model) 
@@ -300,20 +349,34 @@ test_regressors = sm.add_constant(test_regressors)
 test_predictions = model_logreg.predict(test_regressors)
 accuracy = 0
 
+# print('unseen predictions:', unseen_predictions)
 for i in range(0, test_num):
     if test_predictions[i] == tdf.loc[testID[i],u'label']:
+        
         if(test_predictions[i] == 'positive'):
-            jlpb.uprint('Correct: ', tdf.loc[testID[i], u'label'],\
-             tdf.loc[testID[i], u'text'])
+            jlpb.uprint('Correct: id', str(i) + '/' + str(testID[i]) + ', ', \
+                tdf.loc[testID[i], u'label'],\
+                tdf.loc[testID[i], u'text'])
         accuracy = accuracy + 1
     else:
-        jlpb.uprint('WRONG: should be', tdf.loc[testID[i], u'label'], tdf.loc[testID[i], u'text'])
+        jlpb.uprint('WRONG:'+ str(i) + '/' + str(testID[i]) +', should be', \
+            tdf.loc[testID[i], u'label'], tdf.loc[testID[i], u'text'])
+
+# calculate the final accuracy:        
 accuracies = accuracies + [1.0 * accuracy / test_num]
 
+## Show user time needed for this classifier:
+total = int((time.perf_counter() - start) / 60)
+print("Process took %s minutes" % total)
+
+# OUTPUT Accuracy rates and so on:
+#
 # Produce some confusion matrices and plot them:
 labels = ['negative', 'positive']
-confusion_mtx = confusion_matrix(test_predictions,(tdf.loc[testID,u'label']), labels)
-show_confusion_matrix(confusion_mtx, labels)
+
+confusion_mtx = confusion_matrix(test_predictions,(tdf.loc[testID,u'label']))
+print('test conf matrix: ', confusion_mtx)
+show_confusion_matrix(confusion_mtx)
 
 
 train_predictions = model_logreg.predict(train_regressors)
@@ -322,5 +385,16 @@ for i in range(0,len(train_targets)):
     if train_predictions[i] == train_targets[i]:
         accuracy = accuracy + 1
 accuracies = accuracies + [1.0 * accuracy / len(train_targets)]
-confusion_mtx = confusion_matrix(train_predictions,train_targets, labels)
-show_confusion_matrix(confusion_mtx, labels)
+confusion_mtx = confusion_matrix(train_predictions,train_targets)
+print('training conf matrix: ', confusion_mtx)
+
+show_confusion_matrix(confusion_mtx)
+
+
+## Todo:
+## predict unseen and unlabelled tweets
+##
+## make token lists first
+# then make document vectors 
+# then model_logreg.predict() / 
+# model_logreg.predict_proba() to get the class probabailities
