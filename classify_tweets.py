@@ -161,7 +161,7 @@ seed = 20
 seed = 40 
 # This can take a LOT of time if high! but should give better
 # performance for the classifier. 
-epochs = 16 
+epochs = 24
 
 
 ##
@@ -266,10 +266,10 @@ if True:
     model_DM.build_vocab(training_doc)
     model_DBOW.build_vocab(training_doc)
 
-    fout = 'c1200_50kseed40_16ep152se4DM.d2v'
+    fout = 'cBAL_50kseed40_16ep152se4DM.d2v'
     model_DM.save(most_recent + fout)
 
-    fout = 'c1200_50kseed40_16ep152se4DBOW.d2v'
+    fout = 'cBAL_50kseed40_16ep152se4DBOW.d2v'
     model_DBOW.save(most_recent + fout)
 
 else:
@@ -330,7 +330,9 @@ train_regressors = sm.add_constant(train_regressors)
 # scikit parameter to adjust foru our imbalanced dataset:
 # class_weight="balanced", 
 # use default L2 penalty, tolerance speeds training time, 
+# model_logreg = LogisticRegression(C=1200, penalty='l2', tol=0.0001, n_jobs=-1)
 model_logreg = LogisticRegression(C=1200, penalty='l2', tol=0.0001, n_jobs=-1)
+
 model_logreg.fit(train_regressors, train_targets) # first is x-axis, targets the y
 
 ## When ready: use to save a nice model:
@@ -398,3 +400,41 @@ show_confusion_matrix(confusion_mtx)
 # then make document vectors 
 # then model_logreg.predict() / 
 # model_logreg.predict_proba() to get the class probabailities
+
+
+''' # prototype code for visualising high-dim data from LogReg Model.
+from decisionboundaryplot import DBPlot
+import matplotlib.pyplot as plt
+from sklearn.learning_curve import learning_curve
+from numpy.random.mtrand import permutation
+
+ # plot high-dimensional decision boundary
+db = DBPlot(model_logreg)
+X = test_regressors
+print('X: ', X)
+y = (tdf.loc[testID,u'label'])
+
+# y = y.ix[:,1].copy()
+y.to_frame()
+y[y == 'negative'] = 0
+y[y == 'positive'] = 1
+
+db.fit(X, y, training_indices=0.5)
+db.plot(plt, generate_testpoints=True)  # set generate_testpoints=False to speed up plotting
+plt.show()
+
+# plot learning curves for comparison
+N = 10
+train_sizes, train_scores, test_scores = learning_curve(
+    model_logreg, X, y, cv=5, train_sizes=np.linspace(.2, 1.0, N))
+
+plt.errorbar(train_sizes, np.mean(train_scores, axis=1),
+             np.std(train_scores, axis=1) / np.sqrt(N))
+plt.errorbar(train_sizes, np.mean(test_scores, axis=1),
+             np.std(test_scores, axis=1) / np.sqrt(N), c='r')
+
+plt.legend(["Accuracies on training set", "Accuracies on test set"])
+plt.xlabel("Number of data points")
+plt.title(str(model_logreg))
+plt.show()
+'''
