@@ -42,8 +42,10 @@ if __name__ == "__main__":
     seed = 40 
     # This can take a LOT of time if high! but should give better
     # performance for the classifier. 
-    epochs = 24
+    epochs = 40
     vocab_rows = 50000 # how many tweets to use for building vocab in D2Vec
+    vecs = 160
+    test_num = 450
 
     ## LOAD DATA SETS OF TWEETS TO PANDAS DFs FROM CSV==========================
     ##
@@ -105,7 +107,7 @@ if __name__ == "__main__":
     # split for the needed test and training data 
     # maintain approx. a 9:1 ratio of training:test,
     # as we have relatively little labelled data.
-    test_num = 450
+    
     print('Test set size', test_num)
     training_num = total_num - test_num
     print('Training set size', training_num)
@@ -138,9 +140,9 @@ if __name__ == "__main__":
     # change below line to True to load in new models:
     if True:
         # Parameters can be adjusted to try to get better accuracy from classifier.
-        model_DM = Doc2Vec(size=152, window=5, min_count=1, sample=1e-4,\
+        model_DM = Doc2Vec(size=vecs, window=5, min_count=1, sample=1e-4,\
          negative=5, workers=cores,  dm=1, dm_concat=1 )
-        model_DBOW = Doc2Vec(size=152, window=5, min_count=1, sample=1e-4,\
+        model_DBOW = Doc2Vec(size=vecs, window=5, min_count=1, sample=1e-4,\
          negative=5, workers=cores, dm=0)
 
         # construct the vocabs for our models
