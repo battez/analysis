@@ -43,7 +43,7 @@ if __name__ == "__main__":
     # This can take a LOT of time if high! but should give better
     # performance for the classifier. 
     epochs = 40
-    vocab_rows = 50000 # how many tweets to use for building vocab in D2Vec
+    vocab_rows = 40000 # how many tweets to use for building vocab in D2Vec
     vecs = 160
     test_num = 450
 
@@ -149,10 +149,10 @@ if __name__ == "__main__":
         model_DM.build_vocab(training_doc)
         model_DBOW.build_vocab(training_doc)
 
-        fout = 'cBAL_50kseed40_16ep152se4DM.d2v'
+        fout = 'c1200_50kseed40_40ep160se4DM.d2v'
         model_DM.save(most_recent + fout)
 
-        fout = 'cBAL_50kseed40_16ep152se4DBOW.d2v'
+        fout = 'c1200_50kseed40_40ep160se4DBOW.d2v'
         model_DBOW.save(most_recent + fout)
 
     else:
@@ -192,8 +192,10 @@ if __name__ == "__main__":
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import confusion_matrix
     import statsmodels.api as sm
+
+
     random.seed(1212)
-    new_index = random.sample(range(0,total_num),total_num)
+    new_index = random.sample(range(0, total_num), total_num)
 
     # set the IDs for the test set:
     testID = new_index[-test_num:]
@@ -203,6 +205,9 @@ if __name__ == "__main__":
 
     train_targets, train_regressors = zip(*[(class_labels[id], \
         list(model_DM.docvecs[id]) + list(model_DBOW.docvecs[id])) for id in trainID])
+
+    # add a constant term so that we fit the intercept of our linear model.
+    #  i.e. the log odds *only* when x1=x2=0, desirable to avoid biasing the model.
     train_regressors = sm.add_constant(train_regressors)
 
     # Uncomment to use this for multiclass log. regression:
@@ -210,7 +215,7 @@ if __name__ == "__main__":
     # model_logreg = LogisticRegression(multi_class='multinomial',solver='lbfgs')
 
     # Train a two-class log. regression classifier, and use
-    # scikit parameter to adjust foru our imbalanced dataset:
+    # scikit parameter to adjust for our imbalanced dataset:
     # class_weight="balanced", 
     # use default L2 penalty, tolerance speeds training time, 
     # model_logreg = LogisticRegression(C=1200, penalty='l2', tol=0.0001, n_jobs=-1)
@@ -228,14 +233,17 @@ if __name__ == "__main__":
     # When needed, test reloading with
     #  = joblib.load(dir_model + filename_model) 
 
-
+    ## Prepare the test data for testing the model:
     accuracies = []
-    test_regressors = [list(model_DM.docvecs[id])+list(model_DBOW.docvecs[id]) for id in testID]
+    test_regressors = [list(model_DM.docvecs[id]) + list(model_DBOW.docvecs[id]) for id in testID]
+
+    # add a constant term so that we fit the intercept of our linear model.
     test_regressors = sm.add_constant(test_regressors)
     test_predictions = model_logreg.predict(test_regressors)
     accuracy = 0
 
-    # print('unseen predictions:', unseen_predictions)
+    # Loop through the test predictions and adjust accuracy measurement
+    # Also print out the correct positive and all incorrect predictions.
     for i in range(0, test_num):
         if test_predictions[i] == tdf.loc[testID[i],u'label']:
             
@@ -261,7 +269,7 @@ if __name__ == "__main__":
     # Produce some confusion matrices and plot them:
     #
     # cast the labels for the confusion matrix, otherwise they are seen as binary!
-    cast = tdf.loc[testID,u'label']
+    cast = tdf.loc[testID, u'label']
     cast = (cast.values).astype(np.int8) # numpy.ndarray now!
 
     confusion_mtx = confusion_matrix(test_predictions, cast)
@@ -304,7 +312,7 @@ if __name__ == "__main__":
 
 
     
-    # CREDIT: Use library from 
+    # CREDIT: Use library from (something amiss with my parameters! Needs work..)
     # https://github.com/tmadl/highdimensional-decision-boundary-plot
     # prototype code for visualising high-dim data from LogReg Model.
     from decisionboundaryplot import DBPlot

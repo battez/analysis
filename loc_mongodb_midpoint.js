@@ -4,7 +4,7 @@ Math.toRadians = function(degrees) {
   return degrees * Math.PI / 180;
 }
 
-// method adapted from http://www.movable-type.co.uk/scripts/latlong.html 
+// credit: method adapted from http://www.movable-type.co.uk/scripts/latlong.html 
 function haversine(lat1,lng1,lat2,lng2) {
 
     var R = 6371e3; // metres
@@ -12,16 +12,14 @@ function haversine(lat1,lng1,lat2,lng2) {
     var φ2 = Math.toRadians(lat2);
     var Δφ = Math.toRadians((lat2-lat1));
     var Δλ = Math.toRadians((lng2-lng1));
-
     var a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
             Math.cos(φ1) * Math.cos(φ2) *
             Math.sin(Δλ/2) * Math.sin(Δλ/2);
     var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
     return R * c;
 }
 
-// method adapted from http://www.movable-type.co.uk/scripts/latlong.html
+// credit: method adapted from http://www.movable-type.co.uk/scripts/latlong.html
 function midpoint(lat1,lng1,lat2,lng2) {
    
     var ptlng = (lng2 - lng1) / 2;
@@ -50,14 +48,6 @@ db.stream2flood_all.find().limit(5).forEach(
     doc.place_radius = Math.round(haversine(lat1,lng1,obj["coordinates"][1],obj["coordinates"][0] ) /1000) ; 
     doc.place_pt_lng = obj["coordinates"][0];
     doc.place_pt_lat = obj["coordinates"][1];
-    // Debug:
-    // print(doc.place.full_name);
-    // print(doc.place_radius);
-    // print(doc.place.bounding_box.coordinates[0][0][1]);
-    // print(doc.place.bounding_box.coordinates[0][0][0]);
-    // print(doc.place.bounding_box.coordinates[0][2][1]);
-    // print(doc.place.bounding_box.coordinates[0][2][0]);
-    // print(doc.place_centre_pt['coordinates'].reverse());
     
     db.stream2flood_all.save(doc);
 	
@@ -72,7 +62,6 @@ db.stream2flood_all.find().limit(1).forEach(
     
     var endpoint = doc.place.bounding_box.coordinates[0][0];
 
-    //print(endpoint);
     doc.place.bounding_box.coordinates[0].push(endpoint);
     db.stream2flood_all.save(doc);
         

@@ -1,7 +1,7 @@
 ''' 
 lookup locations UK open data. 
 
-NB call populate_db() (see fun below) to run populate load of CSV to db.
+NB call populate_db() (see function below) to run populate load of CSV to db.
 
 This looks up candidate strings for location(s) in a postgres db of UK locations
 and placenames. name1, district can be text searched. Type can also (see db)
