@@ -182,10 +182,11 @@ def lookup(values, district_search=True, limit=1, start_from=True, to_end=True):
         location = ''
         
         if cursor.rowcount > 0:
+            
             # we got a match so lets return the call
             location = rows[0] # debugging
-
             return cursor.rowcount, location
+
         else:
             # check other table column
             cursor.execute(query.replace('locs.name1', alt_column))
@@ -196,7 +197,6 @@ def lookup(values, district_search=True, limit=1, start_from=True, to_end=True):
             
             return cursor.rowcount, location
 
-
     except psycopg2.DatabaseError as e:
         print ('Error %s' % e )   
         sys.exit(1)
@@ -205,7 +205,6 @@ def lookup(values, district_search=True, limit=1, start_from=True, to_end=True):
         
         if conn:
             conn.close()
-
 
 if __name__ == '__main__':
     
@@ -218,9 +217,27 @@ if __name__ == '__main__':
     Type can also be (see db).
     '''
 
-    # testing:
-    t = ['St Vincent Street']
-    match = lookup(t , limit=1)
-    print('match: ', match[0])
+    # testing output:
+
+    
+
+    from timeit import Timer
+    timr = Timer()
+
+    test = ['Somewhere', 'nowheress','newp','newpo','newpo rt','newpor','more of','dummy places',\
+     'Balmullo']
+    match = lookup(test , limit=1)
+    print('query:', test)
+    print(match)
+    print('time taken (no matches initially):',timr.timeit(), ' seconds')
+
+    del timr
+
+    timr2 = Timer()
+    test = ['Balmullo']
+    match = lookup(test , limit=1)
+    print('query:', test)
+    print(match)
+    print('time taken (easy match):',timr2.timeit(), ' seconds')
 
 
