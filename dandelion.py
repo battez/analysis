@@ -1,5 +1,6 @@
 import sys
 import pymongo
+
 TWITDIR = 'U:\Documents\Project\scrape'
 CURR_PLATFORM = sys.platform
 if CURR_PLATFORM != 'linux':
@@ -17,7 +18,7 @@ import json
 import config
 
 ENTITY_URL = 'https://api.dandelion.eu/datatxt/nex/v1'
- 
+
 def get_entities(text, confidence=0.1, lang='en'):
     payload = {
         '$app_id': config.DANDELION_APP_ID,
@@ -44,3 +45,4 @@ if __name__ == '__main__':
     query = '@necky_fade I see other good players really struggled, lots of WD was there heavy rain like at Essendon?'
     response = get_entities(query)
     print(json.dumps(response, indent=4))
+

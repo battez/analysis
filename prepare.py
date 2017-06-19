@@ -1,16 +1,19 @@
 '''
 Process tweets; python 3.x 
 '''
-import sys
+import os, sys
 import pymongo
-TWITDIR = 'U:\Documents\Project\scrape'
+# set needed filepaths depending on OS 
 CURR_PLATFORM = sys.platform
-if CURR_PLATFORM != 'linux':
-    TWITDIR = 'U:\Documents\Project\demoapptwitter'
-    SCRAPEDIR = 'U:\Documents\Project\scrape'
+MACDIR = '~/Dropbox/data-notes-mac-to-chrome/data-incubator/Project_submission/supporting_files_code_queries_logs_Etc/'
+
+if CURR_PLATFORM == 'darwin':
+    TWITDIR = os.path.expanduser(MACDIR + 'demoapptwitter')
+    SCRAPEDIR = os.path.expanduser(MACDIR + 'scrape')
+
 else:
     TWITDIR = '/home/luke/programming/'
-    SCRAPEDIR = '/home/luke/programming/scraping'#FIXME:
+    SCRAPEDIR = '/home/luke/programming/scraping'
 
 sys.path.insert(0, TWITDIR)
 sys.path.insert(0, SCRAPEDIR)
@@ -63,32 +66,6 @@ def normalise_tweet(tweet, nums=True, unicode_replace=False):
     '''
 
     # Various regular expressions used to clean up the tweet data
-    # remove_ellipsis_re = re.compile(r'[\.{2}\u2026]')
-    # \.{2,}(.+)
-     
-    # FIXME 
-    '''
-    try:
-        # UCS-4
-        uni_re = re.compile(u'['
-        u'\U0001F300-\U0001F64F'
-        u'\U0001F680-\U0001F6FF'
-        u'\u2600-\u26FF\u2700-\u27BF]+', 
-        re.UNICODE)
-    except re.error:
-        # UCS-2
-        uni_re = re.compile(u'('
-        u'\ud83c[\udf00-\udfff]|'
-        u'\ud83d[\udc00-\ude4f\ude80-\udeff]|'
-        u'[\u2600-\u26FF\u2700-\u27BF])+', 
-        re.UNICODE)
-
-    if unicode_replace:
-        
-        tweet = re.sub(uni_re, '', tweet)
-    '''
- 
-
     remove_ellipsis_re = re.compile(r'[^\.]\.{2,3}')
     punct_re = re.compile(r"[\"'\[\],’#.:;()&!\u2026]") # leave hyphens
     number_re = re.compile(r"\d+")
@@ -188,7 +165,7 @@ def retweet_stats(dbc):
     Return num. retweets and percentage
     '''
     total = dbc.count()
-    r_total = dbc.count({'original.text':{'$regex':'^RT'}})
+    r_total = dbc.count({'text':{'$regex':'^RT'}})
     percent = 100 * (r_total / total)
     return r_total, float("{0:.2f}".format(percent)) 
 
@@ -198,8 +175,8 @@ def reply_stats(dbc):
     Return num. replies and percentage
     '''
     total = dbc.count()
-    r_total = dbc.count({'original':{'$exists':1}, \
-    'original.in_reply_to_status_id':{'$ne':None} })
+    r_total = dbc.count({'text':{'$exists':1}, \
+    'in_reply_to_status_id':{'$ne':None} })
     percent = 100 * (r_total / total)
     return r_total, float("{0:.2f}".format(percent))
 
@@ -264,8 +241,8 @@ def get_common_entities(tweets, entity_threshold=3):
     return [ (key,val) for (key,val) in common if val >= entity_threshold ]
 
 
-def summarise_entities(dbc, query=[{'$match':{'original':{'$exists':True}}} \
-    , {'$project':{'entities':'$original.entities'}}], top=100):
+def summarise_entities(dbc, query=[{'$match':{'text':{'$exists':True}}} \
+    , {'$project':{'entities':'$entities'}}], top=100):
     '''
     Display summary frequencies for entities in tweets; uses PrettyTable
     '''
@@ -313,7 +290,7 @@ def screen_names_in_db(dbc):
     '''
 
     total = dbc.count()
-    r_total = dbc.distinct('original.user.screen_name') 
+    r_total = dbc.distinct('user.screen_name') 
     percent = 100 * (len(r_total) / total)
     return len(r_total), float("{0:.2f}".format(percent))
 
@@ -329,7 +306,7 @@ def total_tweets(dbc, threshold=1):
     
     for name in screen_names_in_db(dbc):
         
-        query = dict({'original.user.screen_name': name}.items())
+        query = dict({'user.screen_name': name}.items())
         amount = dbc.find(query).count()
         if amount > threshold:
             export_data.append([name, amount])
@@ -351,23 +328,23 @@ if __name__ == '__main__':
 
     # MongoDB data is from scraped tweets,
     # so hashtag entities in original.entities
-    if CURR_PLATFORM != 'linux':
-        dbc = jlpb.get_dbc('Twitter', 'sample_britishsummer990')
+    if CURR_PLATFORM == 'darwin':
+        dbc = jlpb.get_dbc('Twitter', 'has_label_pos')
     else:
         dbc = jlpb.get_dbc('local', 'rawtweets_clean')
 
-    # output some info on the entities:
-    # summarise_entities(dbc)
-    total_num = dbc.count()
 
-    # UNCOMMENT BELOW PRINT()s TO SHOW USEFUL SUMMARY STATS:
+    '''
+    UNCOMMENT BELOW PRINT()s TO SHOW USEFUL SUMMARY STATS:
+    '''
+    # summarise_entities(dbc)
+    # total_num = dbc.count()
     # print('distinct users (num/%)', screen_names_in_db(dbc))
     # print('retweet stats (num/%)',retweet_stats(dbc))
     # print('reply stats (num/%)',reply_stats(dbc))
 
-    # Remove this exit() to re-run the data processing below.
+    # Comment this exit() to re-run the data processing below.
     # exit('exiting. Remove this call to re-run the processing')
-    
     
 
     # store a frequency tabulation using Counter()s:
@@ -378,11 +355,7 @@ if __name__ == '__main__':
 
     # Get the scraped tweets from mongodb, possibly only use English (?), 
     # that we could supplement from the API:
-    results = dbc.find() # dbc.find({"original":{'$exists':True}}).count()
-
-    # load in from CSV n-grams we spot,
-    # and then delete corresponding rows in database:
-    invalidate_phrases, invalidate_terms = load_tokens()
+    results = dbc.find() 
 
     # WARNING setting this to True will delete the tweet if it is seen as 
     # invalid!
@@ -413,46 +386,20 @@ if __name__ == '__main__':
         count_all_uni.update(t_tweet)
 
         # count_all_hashtags.update()
-        # we check that this tweets bigrams are not in the list of bad bigrams:
-        invalidate = False
-        for invalid in invalidate_phrases:
-
-            # delete it from the db:
-            if invalid in phrases:
-                invalidate = True
-                break
+       
+        # insert as nested field of the raw tweet we have for this ID
+        dbc.update({'_id':doc['_id']}, {\
+            '$push':{'txt.trigrams': {'$each':tri_grams},\
+            'txt.bigrams': {'$each':phrases}},\
+            '$set':{'txt.normalised':n_tweet,'txt.parsed':t_tweet}\
+            })
+        print (doc['id_str'])
         
-        for invalid in invalidate_terms:
 
-            # delete it from the db:
-            if invalid in t_tweet:
-                invalidate = True
-                break
+    '''
+    Output some stats
+    '''
 
-        if invalidate and delete_tweets:
-            # delete  this document
-            dbc.remove({'_id':doc['_id']})
-            continue
-        
-        elif invalidate:
-            continue
-        
-        else:
-            # comment out this line to run the updates below if necessary: 
-            # continue
-
-            # insert as nested field of the raw tweet we have for this ID
-            dbc.update({'_id':doc['_id']}, {\
-                '$push':{'txt.trigrams': {'$each':tri_grams},\
-                'txt.bigrams': {'$each':phrases}},\
-                '$set':{'txt.normalised':n_tweet,'txt.parsed':t_tweet}\
-                })
-
-    ##
-    ##
-    # Output some stats
-    ##
-    ##
     # view our most frequent bigrams    
     common = count_all.most_common(num)
 

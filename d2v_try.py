@@ -286,8 +286,8 @@ if __name__ == '__main__':
     ##
     ## VARIOUS maintenance tasks:
     #uncomment to begin labelling tweets:
-    # quick_label_tweets()
-
+    quick_label_tweets()
+    exit()
     # d2file = 'doc2vec_tsne_svd.csv'
     # plot_tsne(d2file) # add 1 to the index to get the line number..
     ## END VARIOUS mainitenace tasks

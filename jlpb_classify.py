@@ -3,9 +3,21 @@ def split(text):
     text string; a tweet (already tokenised)
     returns list; words
     '''
+    import prepare as prep
+    text = prep.normalise_tweet(text)
     words = text.split(' ')
+    # print('tweet tokened:', words)
     return words
-
+def dump(obj):
+  '''return a printable representation of an object for debugging'''
+  newobj=obj
+  if '__dict__' in dir(obj):
+    newobj=obj.__dict__
+    if ' object at ' in str(obj) and not newobj.has_key('__type__'):
+      newobj['__type__']=str(obj)
+    for attr in newobj:
+      newobj[attr]=dump(newobj[attr])
+  return newobj
 
 def show_confusion_matrix(C,class_labs=['0','1']):
     '''
@@ -114,4 +126,4 @@ def show_confusion_matrix(C,class_labs=['0','1']):
             bbox=dict(fc='w',boxstyle='round,pad=1'))
 
     plt.tight_layout()
-    plt.show()
+    plt.show(block=True)
