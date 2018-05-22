@@ -42,14 +42,14 @@ if __name__ == "__main__":
 
     # Set up some key variables for the process of model training:
     # Use a random seed for reproducibility 
-    seed = 40 
+    seed = 50 
 
     # This can take a LOT of time if high! but should give better
     # performance for the classifier. 
-    epochs = 2 
-    vocab_rows = 20000 # no. unlabelled tweets for building vocabulary table in Doc2Vec
+    epochs = 12
+    vocab_rows = 400000 # no. unlabelled tweets for building vocabulary table in Doc2Vec
     vocab_frac = 1 # when using a sample of a huge file of unlabelled tweets
-    vecs = 200
+    vecs = 160
     test_num = 450 
 
     ## LOAD DATA SETS OF TWEETS TO PANDAS DFs FROM CSV==========================
@@ -165,7 +165,7 @@ if __name__ == "__main__":
         model_DBOW.build_vocab(training_doc)
         
         # train the models themselves
-        for it in range(0,epochs):
+        for it in range(0, epochs):
             # progress as this takes a long time:
             if (it % 2) == 0:
                 print('epoch ' + str(it) + ' of ' + str(epochs))
@@ -250,8 +250,8 @@ if __name__ == "__main__":
     #  i.e. the log odds *only* when x1=x2=0, desirable to avoid biasing the model.
     train_regressors = sm.add_constant(train_regressors)
 
-    model_logreg = LogisticRegression(C=3, tol=0.0001, penalty='l2', solver='sag', n_jobs=-1)
-
+    model_logreg = LogisticRegression(C=1.0, tol=0.0001, penalty='l2', max_iter=500, solver='sag', n_jobs=-1)
+    print('please wait.......fitting LR model.....')
     model_logreg.fit(train_regressors, train_targets) 
 
     ## Prepare the test data for testing the model:
@@ -266,9 +266,10 @@ if __name__ == "__main__":
     # Loop through the test predictions and adjust accuracy measurement
     # Also print out the correct positive and all incorrect predictions.
     for i in range(0, test_num):
-        print('probs', model_logreg.predict_proba(test_regressors[i]))
+        print('probs', model_logreg.predict_proba([test_regressors[i]]))
         if test_predictions[i] == tdf.loc[testID[i],u'label']:
             
+            # output any true positives:
             if(test_predictions[i] == 1):
                 jlpb.uprint('Correct: id', str(i) + ', tdf_row:' + str(testID[i]) + ', ', \
                     str(tdf.loc[testID[i], u'label']),\
@@ -292,11 +293,12 @@ if __name__ == "__main__":
     #
     # cast the labels for the confusion matrix, otherwise they are seen as binary!
     cast = tdf.loc[testID, u'label']
-    cast = (cast.values).astype(np.int8) # numpy.ndarray now!
+    cast = (cast.values).astype(np.int8) # numpy.ndarray now.
 
+    # Key result - TEST matrix:
     confusion_mtx = confusion_matrix(cast, test_predictions)
-    print('Test confusion matrix: ')
     jlpb_classify.show_confusion_matrix(confusion_mtx)
+
 
     train_predictions = model_logreg.predict(train_regressors)
     accuracy = 0
@@ -305,7 +307,6 @@ if __name__ == "__main__":
             accuracy = accuracy + 1
     accuracies = accuracies + [1.0 * accuracy / len(train_targets)]
     confusion_mtx = confusion_matrix(train_targets, train_predictions)
-    print('Training confusion matrix:')
     jlpb_classify.show_confusion_matrix(confusion_mtx)
 
 
@@ -335,7 +336,6 @@ if __name__ == "__main__":
     print(pred_probas.shape) 
 
     # ACTUAL y-test/ground truths
-
     print('ground truths', tdf.loc[testID,u'label'].size, ' and ', tdf.loc[testID,u'label'].dtype) 
     
     fpr, tpr, _ = roc_curve(tdf.loc[testID,u'label'], pred_probas)
@@ -355,22 +355,21 @@ if __name__ == "__main__":
     from sklearn.metrics import precision_score
     from sklearn.metrics import average_precision_score
     from sklearn.metrics import f1_score
-
     from sklearn.metrics import precision_recall_curve
-    # average_precision = average_precision_score(tdf.loc[testID,u'label'], pred_probas)
 
+    # average_precision = average_precision_score(tdf.loc[testID,u'label'], pred_probas)
     average_precision = average_precision_score(tdf.loc[testID,u'label'].astype(int), pred_probas)
     print('Average precision-recall score: ', average_precision)
 
     # print('Average precision-recall score: {0:0.2f}'.format(average_precision))
     # other metrics
     # print("Precision: %2f" % precision_score(tdf.loc[testID,u'label'], test_predictions)
-    print("F1: %2f" % f1_score(tdf.loc[testID,u'label'], test_predictions, average="macro"))
+    print("F1: %2f" % f1_score(tdf.loc[testID,u'label'].astype(int), test_predictions, average="macro"))
     
 
     # need to just get the probs of the positive class, hence pred_probas[:,1]  
     # (NB or try instead: y_scores_lr = lr.fit(X_train, y_train).decision_function(X_test))
-    precision, recall, _ = precision_recall_curve(tdf.loc[testID,u'label'], pred_probas[:,1])
+    precision, recall, _ = precision_recall_curve(tdf.loc[testID,u'label'], pred_probas) #[:,1]
     area = auc(recall, precision)
     print ("Area Under PR Curve(AP): %0.2f" % area)
     plt.step(recall, precision, color='b', alpha=0.2, where='post')
