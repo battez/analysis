@@ -195,10 +195,8 @@ if __name__ == "__main__":
  
     # Output some Diagnostic word vectors:
     print('similar lunch flooding', model_DM.similarity('lunch', 'flooding'))
-    print('similar mobile thunderstorm', model_DM.similarity('mobile', 'thunderstorm'))
-    
-    print('paris', model_DM.most_similar(positive=['paris', 'england'], negative=['france']) )
-    
+    print('similar rain thunderstorm', model_DM.similarity('rain', 'thunderstorm'))
+        
     print('boy etc', model_DM.most_similar(['girl', 'father'], ['boy']))
     print('nonmatch', model_DM.doesnt_match("delay government flooding lightning".split()))
 
@@ -252,8 +250,7 @@ if __name__ == "__main__":
     #  i.e. the log odds *only* when x1=x2=0, desirable to avoid biasing the model.
     train_regressors = sm.add_constant(train_regressors)
 
-    # set params for model: tol=0.0001,
-    model_logreg = LogisticRegression(C=3, tol=0.0001, penalty='l2',  n_jobs=-1)
+    model_logreg = LogisticRegression(C=3, tol=0.0001, penalty='l2', solver='sag', n_jobs=-1)
 
     model_logreg.fit(train_regressors, train_targets) 
 
