@@ -6,7 +6,7 @@ import random
 import numpy as np
 import os, sys
 
-# specify dir to save a pickle model here, later
+# specify dir to save a cached Doc2Vec model later
 dir_model = os.path.expanduser('~/Downloads/')
 CURR_PLATFORM = sys.platform
 
@@ -33,7 +33,7 @@ import jlpb_classify
 if __name__ == "__main__":
     '''
     We will use a Doc2Vec model to then train a classifier
-    (Logistic Regression currently) to try to classify relevant
+    (Logistic Regression etc) to try to classify relevant
     tweets from irrelevant ones for topic of flooding.
 
     '''
@@ -43,13 +43,14 @@ if __name__ == "__main__":
     # Set up some key variables for the process of model training:
     # Use a random seed for reproducibility 
     seed = 40 
+
     # This can take a LOT of time if high! but should give better
     # performance for the classifier. 
-    epochs = 30 # 210109 rows
-    vocab_rows = 50000 # how many unlabelled tweets to use for building vocab in D2Vec
+    epochs = 2 
+    vocab_rows = 20000 # no. unlabelled tweets for building vocabulary table in Doc2Vec
     vocab_frac = 1 # when using a sample of a huge file of unlabelled tweets
     vecs = 200
-    test_num = 450 # 450
+    test_num = 450 
 
     ## LOAD DATA SETS OF TWEETS TO PANDAS DFs FROM CSV==========================
     ##
@@ -65,12 +66,11 @@ if __name__ == "__main__":
     ## combine these two together: 
     zdf = pd.concat([df, ndf], axis=0)
 
-
     # load this further 4002 labelled rows :
     xdf = pd.read_csv('tokens_buffer10k4002set.csv')
     xdf = xdf[[u'label',u'text']]
 
-    # Combine these 500 + 4002 labelled:
+    # tdf therefore will combine all our labelled data: i.e. 500 + 4002 labelled:
     tdf = pd.concat([zdf, xdf], axis=0)
 
     # make the string a list 
@@ -81,28 +81,25 @@ if __name__ == "__main__":
 
     tdf[tdf == 'negative'] = 0
     tdf[tdf == 'positive'] = 1
-    print('head:5', tdf.head(5))
-    print('tail:5', tdf.tail(5))
+    
+    print('TDF tail:5', tdf.tail(5))
+
     # Randomise the order of the Labelled set rows 
-    # (using a seed for reproducibility)
-    tdf = tdf.sample(frac=1, random_state=np.random.RandomState(seed)).\
+    tdf = tdf.sample(frac=vocab_frac, random_state=np.random.RandomState(seed)).\
         reset_index(drop=True)
 
-    print('Head labelled set', tdf.head(5))
     print('Tail labelled set', tdf.tail(5))
     print('Dims tdf',tdf.shape)
 
-    # Load in our unlabelled data set of tweets to build the d2v vocabulary.
-    print('loading unlabelled vocab tweets into dataframe...')
-    udf = pd.read_csv('unlab420k.csv') #unlabelled.csv has 50k
+    # Load in our unlabelled data set of tweets to build the doc2vec vocabulary table.
+    udf = pd.read_csv('unlabelled.csv') #unlabelled.csv has 50k; unlab420k.csv all!
     udf = udf[[u'text']]
-    print('completed loading!')
-
-    print('randomising unlabelled dataframe...')
-    # 100k+ tweets
+    
+    print('randomising unlabelled tweets dataframe for vocab build ...')
+    
     udf = udf.sample(frac=vocab_frac, random_state=np.random.RandomState(seed)).\
         reset_index(drop=True) 
-    # udf = udf.iloc[:5] # debug
+
     # uncomment to use with 23rd data only:
     # udf = udf.iloc[:vocab_rows]
     print(udf.size , 'rows')
@@ -123,11 +120,9 @@ if __name__ == "__main__":
     # split for the needed test and training data 
     # maintain approx. a 9:1 ratio of training:test,
     # as we have relatively little labelled data.
-    
-    print('Test set size', test_num)
     training_num = total_num - test_num
-    print('Training set size', training_num)
-
+    print('Test set size', test_num, 'Training set size', training_num)
+    
 
     documents = [TaggedDocument(list(tdf.loc[i,'text']),[i]) for i in range(0, total_num)]
     documents_unlabelled = [TaggedDocument(list(udf.loc[i,'text']), \
@@ -148,7 +143,7 @@ if __name__ == "__main__":
     import multiprocessing
     cores = multiprocessing.cpu_count()
 
-    # build fresh doc2vec models if True set below!
+    # build fresh models if True set below!
     # (otherwise load from disk)
     most_recent = dir_model + 'Mac_d2v_tol0001_win10_420kseed40_200se5_ep30_minc6'
     # save current labelled dataframe to a CSV 
@@ -156,20 +151,20 @@ if __name__ == "__main__":
 
     model_DM, model_DBOW = (None, None)
 
-    # change below line to True to load in new models:
-    if False:
+    # Train the two different methods of the Doc2Vec algorithm:
+    # and change below line to True to load in new models:
+    if True:
         # Parameters can be adjusted to try to get better accuracy from classifier.
         model_DM = Doc2Vec(size=vecs, window=10, min_count=6, sample=1e-5,\
          negative=5, workers=cores,  dm=1, dm_concat=1 )
         model_DBOW = Doc2Vec(size=vecs, window=10, min_count=6, sample=1e-5,\
          negative=5, workers=cores, dm=0)
 
-        # construct the vocabs for our models
+        # construct the vocabulary tables for our models
         model_DM.build_vocab(training_doc)
         model_DBOW.build_vocab(training_doc)
-
-
-
+        
+        # train the models themselves
         for it in range(0,epochs):
             # progress as this takes a long time:
             if (it % 2) == 0:
@@ -197,10 +192,8 @@ if __name__ == "__main__":
         model_DBOW = Doc2Vec.load(most_recent + fout)
 
 
-    # train the two different methods of the Doc2Vec algorithm:
-    # NB DBOW is more similar to the recommended skip-gram of 
-    # Word2Vec by the original paper's authors.  
  
+    # Output some Diagnostic word vectors:
     print('similar lunch flooding', model_DM.similarity('lunch', 'flooding'))
     print('similar mobile thunderstorm', model_DM.similarity('mobile', 'thunderstorm'))
     
@@ -221,12 +214,14 @@ if __name__ == "__main__":
     print('ukstorm', model_DM.most_similar('ukstorm'))
 
     print('trains', model_DM.most_similar('trains'))
-    print('delays', model_DM.most_similar('delays'))
+    print('delays', model_DM.most_similar('delays')) 
 
     print('light thunder similarity', model_DM.similarity('lightning', 'thunder'))
     
+    
     '''
-    Use Logistic Regression and train a classifier from Doc2Vec model and labelled data.
+    Use  SciKit estimator (log. regression or others) to train classifier from Doc2Vec model
+    and labelled data.
 
     Then output plots of confusion matrices of the accuracy of the model applied to 
     test data.
@@ -241,7 +236,7 @@ if __name__ == "__main__":
     import statsmodels.api as sm
     import matplotlib.pyplot as plt
 
-    random.seed(1234) # 100 , 1212
+    random.seed(1234) 
     new_index = random.sample(range(0, total_num), total_num)
 
     # set the IDs for the test set:
@@ -303,7 +298,7 @@ if __name__ == "__main__":
     cast = (cast.values).astype(np.int8) # numpy.ndarray now!
 
     confusion_mtx = confusion_matrix(cast, test_predictions)
-    print('test conf matrix: ', confusion_mtx)
+    print('Test confusion matrix: ')
     jlpb_classify.show_confusion_matrix(confusion_mtx)
 
     train_predictions = model_logreg.predict(train_regressors)
@@ -313,7 +308,7 @@ if __name__ == "__main__":
             accuracy = accuracy + 1
     accuracies = accuracies + [1.0 * accuracy / len(train_targets)]
     confusion_mtx = confusion_matrix(train_targets, train_predictions)
-    print('training conf matrix: ', confusion_mtx)
+    print('Training confusion matrix:')
     jlpb_classify.show_confusion_matrix(confusion_mtx)
 
 
@@ -332,24 +327,24 @@ if __name__ == "__main__":
     emphasize one at the cost of the other.
     '''
     # Create ROC curve:
-    # we need to calculate the fpr and tpr for all thresholds of the classification
+    # we need to calculate the fpr and tpr for all class probability thresholds 
     from sklearn.metrics import roc_curve, auc
     
-
     # only use probs of pos. class here - 
     # since we need the prediction array to contain probability 
     # estimates of the positive class or confidence values
-    # PREDICTED:
-    pred_probas = model_logreg.predict_proba(test_regressors)[:,1] 
+    # PREDICTED y-scores:
+    pred_probas = model_logreg.predict_proba(test_regressors)[:, 1] 
     print(pred_probas.shape) 
 
-    # ACTUAL
-    print(tdf.loc[testID,u'label'].size) 
-    # print('actual test classes:',tdf.loc[testID,u'label'])
-    fpr,tpr,_ = roc_curve(tdf.loc[testID,u'label'], pred_probas)
+    # ACTUAL y-test/ground truths
+
+    print('ground truths', tdf.loc[testID,u'label'].size, ' and ', tdf.loc[testID,u'label'].dtype) 
+    
+    fpr, tpr, _ = roc_curve(tdf.loc[testID,u'label'], pred_probas)
     roc_auc = auc(fpr,tpr)
-    plt.plot(fpr,tpr,label='area = %.2f' % roc_auc)
-    plt.plot([0, 1], [0, 1], 'k--')
+    plt.plot(fpr, tpr, label='Area Under ROC curve = %.2f' % roc_auc)
+    plt.plot([0, 1], [0, 1], 'r--') # indicate a randomly guessing classifier performance 
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
     plt.legend(loc='lower right')
@@ -359,12 +354,43 @@ if __name__ == "__main__":
 
     plt.show()
 
+    # We have imbalanced classes so best practice is to use Precision/recall to evaluate:
+    from sklearn.metrics import precision_score
+    from sklearn.metrics import average_precision_score
+    from sklearn.metrics import f1_score
 
+    from sklearn.metrics import precision_recall_curve
+    # average_precision = average_precision_score(tdf.loc[testID,u'label'], pred_probas)
+
+    average_precision = average_precision_score(tdf.loc[testID,u'label'].astype(int), pred_probas)
+    print('Average precision-recall score: ', average_precision)
+
+    # print('Average precision-recall score: {0:0.2f}'.format(average_precision))
+    # other metrics
+    # print("Precision: %2f" % precision_score(tdf.loc[testID,u'label'], test_predictions)
+    print("F1: %2f" % f1_score(tdf.loc[testID,u'label'], test_predictions, average="macro"))
+    
+
+    # need to just get the probs of the positive class, hence pred_probas[:,1]  
+    # (NB or try instead: y_scores_lr = lr.fit(X_train, y_train).decision_function(X_test))
+    precision, recall, _ = precision_recall_curve(tdf.loc[testID,u'label'], pred_probas[:,1])
+    area = auc(recall, precision)
+    print ("Area Under PR Curve(AP): %0.2f" % area)
+    plt.step(recall, precision, color='b', alpha=0.2, where='post')
+    plt.fill_between(recall, precision, step='post', alpha=0.2, color='b')
+
+    plt.xlabel('Recall')
+    plt.ylabel('Precision')
+    plt.ylim([0.0, 1.05])
+    plt.xlim([0.0, 1.0])
+    plt.title('2-class Precision-Recall curve: AUC={0:0.2f}'.format(average_precision))
+    plt.show()
     
     ## Demonstration:
-    ## predict unseen and unlabelled tweets now using infer:
-    ## make token lists first
+    ## predict unseen and unlabelled tweets now using infer_vector():
+    ## make a set of test tweets as tokenised lists first
     tokens = list()
+
     # irrelevant tests:
     tokens.append("what kind of sick mosquito bites the bottom of your foot".split())
     tokens.append("if there was a bucket for pins on twitter we could easily fillet".split())
