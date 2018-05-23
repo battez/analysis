@@ -46,10 +46,10 @@ if __name__ == "__main__":
 
     # This can take a LOT of time if high! but should give better
     # performance for the classifier. 
-    epochs = 12
-    vocab_rows = 400000 # no. unlabelled tweets for building vocabulary table in Doc2Vec
+    epochs = 20
+    vocab_rows = 420000 # no. unlabelled tweets for building vocabulary table in Doc2Vec
     vocab_frac = 1 # when using a sample of a huge file of unlabelled tweets
-    vecs = 160
+    vecs = 200
     test_num = 450 
 
     ## LOAD DATA SETS OF TWEETS TO PANDAS DFs FROM CSV==========================
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     print('Dims tdf',tdf.shape)
 
     # Load in our unlabelled data set of tweets to build the doc2vec vocabulary table.
-    udf = pd.read_csv('unlabelled.csv') #unlabelled.csv has 50k; unlab420k.csv all!
+    udf = pd.read_csv('unlab420k.csv') #unlabelled.csv has 50k; unlab420k.csv all!
     udf = udf[[u'text']]
     
     print('randomising unlabelled tweets dataframe for vocab build ...')
@@ -102,8 +102,8 @@ if __name__ == "__main__":
 
     # uncomment to use with 23rd data only:
     # udf = udf.iloc[:vocab_rows]
-    print(udf.size , 'rows')
-    print('completed randomising!')
+    print(udf.size , ' unlabelled tweets for vocab')
+    
 
     # we need to clean up chars in this unlabelled tweets and tokenise into words: 
     udf.loc[:,'text'] = udf.loc[:,'text'].map(jlpb_classify.split)
@@ -123,7 +123,6 @@ if __name__ == "__main__":
     training_num = total_num - test_num
     print('Test set size', test_num, 'Training set size', training_num)
     
-
     documents = [TaggedDocument(list(tdf.loc[i,'text']),[i]) for i in range(0, total_num)]
     documents_unlabelled = [TaggedDocument(list(udf.loc[i,'text']), \
         [i+total_num]) for i in range(0, total_num_unlabelled)]
@@ -145,7 +144,7 @@ if __name__ == "__main__":
 
     # build fresh models if True set below!
     # (otherwise load from disk)
-    most_recent = dir_model + 'Mac_d2v_tol0001_win10_420kseed40_200se5_ep30_minc6'
+    most_recent = dir_model + 'Mac_d2v_win10_420kseed50_200se5_ep20_minc6'
     # save current labelled dataframe to a CSV 
     tdf.to_csv(most_recent + 'LOG.csv')
 
@@ -153,7 +152,7 @@ if __name__ == "__main__":
 
     # Train the two different methods of the Doc2Vec algorithm:
     # and change below line to True to load in new models:
-    if True:
+    if False:
         # Parameters can be adjusted to try to get better accuracy from classifier.
         model_DM = Doc2Vec(size=vecs, window=10, min_count=6, sample=1e-5,\
          negative=5, workers=cores,  dm=1, dm_concat=1 )
@@ -192,15 +191,10 @@ if __name__ == "__main__":
         model_DBOW = Doc2Vec.load(most_recent + fout)
 
 
- 
     # Output some Diagnostic word vectors:
     print('similar lunch flooding', model_DM.similarity('lunch', 'flooding'))
     print('similar rain thunderstorm', model_DM.similarity('rain', 'thunderstorm'))
-        
-    print('boy etc', model_DM.most_similar(['girl', 'father'], ['boy']))
     print('nonmatch', model_DM.doesnt_match("delay government flooding lightning".split()))
-
-    print('nonmatch', model_DM.doesnt_match("euref voteout remain lightning".split()))
     print('euref sim by word', model_DM.similar_by_word('euref'))
     print('umbrella emoji ☔️☔️☔️', model_DM.similar_by_word('☔️☔️☔️'))
     print('flooding ', model_DM.similar_by_word('flooding'))
@@ -210,10 +204,8 @@ if __name__ == "__main__":
     print('thunder', model_DM.most_similar('thunder'))
     print('thunderstorm', model_DM.most_similar('thunderstorm'))
     print('ukstorm', model_DM.most_similar('ukstorm'))
-
     print('trains', model_DM.most_similar('trains'))
     print('delays', model_DM.most_similar('delays')) 
-
     print('light thunder similarity', model_DM.similarity('lightning', 'thunder'))
     
     
@@ -232,9 +224,11 @@ if __name__ == "__main__":
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import confusion_matrix
     import statsmodels.api as sm
+    
     import matplotlib.pyplot as plt
 
     random.seed(1234) 
+
     new_index = random.sample(range(0, total_num), total_num)
 
     # set the IDs for the test set:
@@ -250,7 +244,7 @@ if __name__ == "__main__":
     #  i.e. the log odds *only* when x1=x2=0, desirable to avoid biasing the model.
     train_regressors = sm.add_constant(train_regressors)
 
-    model_logreg = LogisticRegression(C=1.0, tol=0.0001, penalty='l2', max_iter=500, solver='sag', n_jobs=-1)
+    model_logreg = LogisticRegression(C=0.01, class_weight='balanced', tol=0.001, penalty='l2', max_iter=600, solver='sag', n_jobs=-1)
     print('please wait.......fitting LR model.....')
     model_logreg.fit(train_regressors, train_targets) 
 
@@ -266,7 +260,7 @@ if __name__ == "__main__":
     # Loop through the test predictions and adjust accuracy measurement
     # Also print out the correct positive and all incorrect predictions.
     for i in range(0, test_num):
-        print('probs', model_logreg.predict_proba([test_regressors[i]]))
+        # debug: print('probs', model_logreg.predict_proba([test_regressors[i]]))
         if test_predictions[i] == tdf.loc[testID[i],u'label']:
             
             # output any true positives:
@@ -366,7 +360,6 @@ if __name__ == "__main__":
     # print("Precision: %2f" % precision_score(tdf.loc[testID,u'label'], test_predictions)
     print("F1: %2f" % f1_score(tdf.loc[testID,u'label'].astype(int), test_predictions, average="macro"))
     
-
     # need to just get the probs of the positive class, hence pred_probas[:,1]  
     # (NB or try instead: y_scores_lr = lr.fit(X_train, y_train).decision_function(X_test))
     precision, recall, _ = precision_recall_curve(tdf.loc[testID,u'label'], pred_probas) #[:,1]
@@ -417,11 +410,11 @@ if __name__ == "__main__":
         dv = list(dvdm) + list(dvdbow) 
         # print('dv initially')
         # pprint(jlpb_classify.dump(dv)) 
-        print(dir(dv))
-        print (type(dv))
+        #print(dir(dv))
+        #print (type(dv))
         dv = np.append([1.0], dv)
-        probs = model_logreg.predict_proba(dv) # to get the class probabailities
-        print(probs, model_logreg.predict(dv)) # and output the class
+        probs = model_logreg.predict_proba([dv]) # to get the class probabailities
+        print(probs, model_logreg.predict([dv])) # and output the class
 
    
 
