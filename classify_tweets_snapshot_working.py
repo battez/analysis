@@ -25,7 +25,7 @@ else:
 sys.path.insert(0, TWITDIR)
 sys.path.insert(0, SCRAPEDIR)
 
-# get some handy functions 
+# get some handy functions for plotting metrics and preprocessing text
 import jlpb
 import jlpb_classify
 
@@ -191,6 +191,14 @@ if __name__ == "__main__":
         model_DBOW = Doc2Vec.load(most_recent + fout)
 
 
+    # viz some word vecs using tSNE
+    import tsneviz
+
+    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'flooding')
+    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'thunderstorm')
+    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'delays')
+
+
     # Output some Diagnostic word vectors:
     print('similar lunch flooding', model_DM.similarity('lunch', 'flooding'))
     print('similar rain thunderstorm', model_DM.similarity('rain', 'thunderstorm'))
@@ -225,8 +233,6 @@ if __name__ == "__main__":
     from sklearn.metrics import confusion_matrix
     import statsmodels.api as sm
     
-    import matplotlib.pyplot as plt
-
     random.seed(1234) 
 
     new_index = random.sample(range(0, total_num), total_num)
@@ -320,8 +326,10 @@ if __name__ == "__main__":
     '''
     # Create ROC curve:
     # we need to calculate the fpr and tpr for all class probability thresholds 
-    from sklearn.metrics import roc_curve, auc
-    
+    from sklearn.metrics import roc_curve, auc, precision_score, average_precision_score, \
+    f1_score, precision_recall_curve
+    import matplotlib.pyplot as plt
+
     # only use probs of pos. class here - 
     # since we need the prediction array to contain probability 
     # estimates of the positive class or confidence values
@@ -345,11 +353,7 @@ if __name__ == "__main__":
 
     plt.show()
 
-    # We have imbalanced classes so best practice is to use Precision/recall to evaluate:
-    from sklearn.metrics import precision_score
-    from sklearn.metrics import average_precision_score
-    from sklearn.metrics import f1_score
-    from sklearn.metrics import precision_recall_curve
+
 
     # average_precision = average_precision_score(tdf.loc[testID,u'label'], pred_probas)
     average_precision = average_precision_score(tdf.loc[testID,u'label'].astype(int), pred_probas)
