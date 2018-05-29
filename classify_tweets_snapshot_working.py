@@ -46,13 +46,15 @@ if __name__ == "__main__":
 
     # This can take a LOT of time if high! but should give better
     # performance for the classifier. 
-    epochs = 30
+    epochs = 50
     vocab_frac = 1 # when using a sample of a huge file of unlabelled tweets
     vecs = 200
     test_num = 450 
 
     # we can load a saved model from disk, or make a new one: 
     make_new_D2V_model = False
+    showTsne = False 
+
 
     # Gensim Doc2Vec for high-dim vectors in model(s) for each tweet:
     from gensim.models.doc2vec import TaggedDocument, Doc2Vec
@@ -144,7 +146,7 @@ if __name__ == "__main__":
 
     # set the filename with some parameters - 
     # so that we can load it again from disk after saving:
-    most_recent = dir_model + 'Mac_d2v_win10_420kseed50_200se5_ep30_minc5'
+    most_recent = dir_model + 'Mac_d2v_win10_420kseed50_200se5_ep50_minc6'
 
     # Train the two different methods of the Doc2Vec algorithm:
     # and change below line to True to load in new models:
@@ -152,9 +154,9 @@ if __name__ == "__main__":
         
 
         # Parameters can be adjusted to try to get better accuracy from classifier.
-        model_DM = Doc2Vec(size=vecs, window=10, min_count=5, sample=1e-5,\
+        model_DM = Doc2Vec(size=vecs, window=10, min_count=6, sample=1e-5,\
          negative=5, workers=cores,  dm=1, dm_concat=1, iter=epochs)
-        model_DBOW = Doc2Vec(size=vecs, window=10, min_count=5, sample=1e-5,\
+        model_DBOW = Doc2Vec(size=vecs, window=10, min_count=6, sample=1e-5,\
          negative=5, workers=cores, dm=0, iter=epochs)
 
         # construct the vocabulary tables for our models
@@ -184,28 +186,28 @@ if __name__ == "__main__":
     print('vec size DM docvecs ', model_DM.docvecs.count)
 
     # viz some word vecs using tSNE
-    import tsneviz
+    if showTsne:
+        import tsneviz
 
-    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'flooding', vecs)
-    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'thunderstorm', vecs)
-    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'delays', vecs)
+        tsneviz.display_closestwords_tsnescatterplot(model_DM, 'flooding', vecs)
+        tsneviz.display_closestwords_tsnescatterplot(model_DM, 'thunderstorm', vecs)
+        tsneviz.display_closestwords_tsnescatterplot(model_DM, 'delays', vecs)
 
-
-    # Output some Diagnostic word vectors:
-    print('similar lunch flooding', model_DM.similarity('lunch', 'flooding'))
-    print('similar rain thunderstorm', model_DM.similarity('rain', 'thunderstorm'))
-    print('nonmatch', model_DM.doesnt_match("delay government flooding lightning".split()))
-    print('euref sim by word', model_DM.similar_by_word('euref'))
-    print('umbrella emoji ☔️☔️☔️', model_DM.similar_by_word('☔️☔️☔️'))
-    print('flooding ', model_DM.similar_by_word('flooding'))
-    print('weather', model_DM.most_similar('weather'))
-    print('rain', model_DM.most_similar('rain'))
-    print('lightning', model_DM.most_similar('lightning'))
-    print('thunder', model_DM.most_similar('thunder'))
-    print('thunderstorm', model_DM.most_similar('thunderstorm'))
-    print('trains', model_DM.most_similar('trains'))
-    print('delays', model_DM.most_similar('delays')) 
-    print('light thunder similarity', model_DM.similarity('lightning', 'thunder'))
+        # Output some Diagnostic word vectors:
+        print('similar lunch flooding', model_DM.similarity('lunch', 'flooding'))
+        print('similar rain thunderstorm', model_DM.similarity('rain', 'thunderstorm'))
+        print('nonmatch', model_DM.doesnt_match("delay government flooding lightning".split()))
+        print('euref sim by word', model_DM.similar_by_word('euref'))
+        print('umbrella emoji ☔️☔️☔️', model_DM.similar_by_word('☔️☔️☔️'))
+        print('flooding ', model_DM.similar_by_word('flooding'))
+        print('weather', model_DM.most_similar('weather'))
+        print('rain', model_DM.most_similar('rain'))
+        print('lightning', model_DM.most_similar('lightning'))
+        print('thunder', model_DM.most_similar('thunder'))
+        print('thunderstorm', model_DM.most_similar('thunderstorm'))
+        print('trains', model_DM.most_similar('trains'))
+        print('delays', model_DM.most_similar('delays')) 
+        print('light thunder similarity', model_DM.similarity('lightning', 'thunder'))
     
     
     '''
@@ -240,9 +242,9 @@ if __name__ == "__main__":
     # add a constant term so that we fit the intercept of our linear model.
     #  i.e. the log odds *only* when x1=x2=0, desirable to avoid biasing the model.
     train_regressors = sm.add_constant(train_regressors)
-
-    model_logreg = LogisticRegression(C=1, class_weight='balanced', \
-        tol=0.0001, penalty='l2', max_iter=600, solver='sag', n_jobs=-1)
+    #  
+    model_logreg = LogisticRegression(C=0.008, class_weight='balanced', \
+        tol=0.001, penalty='l2', max_iter=10000, solver='sag', n_jobs=-1)
     print('please wait.......fitting LR model.....')
     model_logreg.fit(train_regressors, train_targets) 
 
