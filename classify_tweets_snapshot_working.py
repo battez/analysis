@@ -46,11 +46,22 @@ if __name__ == "__main__":
 
     # This can take a LOT of time if high! but should give better
     # performance for the classifier. 
-    epochs = 20
-    vocab_rows = 420000 # no. unlabelled tweets for building vocabulary table in Doc2Vec
+    epochs = 30
     vocab_frac = 1 # when using a sample of a huge file of unlabelled tweets
     vecs = 200
     test_num = 450 
+
+    # we can load a saved model from disk, or make a new one: 
+    make_new_D2V_model = False
+
+    # Gensim Doc2Vec for high-dim vectors in model(s) for each tweet:
+    from gensim.models.doc2vec import TaggedDocument, Doc2Vec
+    
+    # find out max system workers from the cores
+    # so we can make use of the max CPU:
+    import multiprocessing
+    cores = multiprocessing.cpu_count()
+
 
     ## LOAD DATA SETS OF TWEETS TO PANDAS DFs FROM CSV==========================
     ##
@@ -77,15 +88,11 @@ if __name__ == "__main__":
     # NB needed in D2V gensim: (ie split the string into words, for D2V)
     tdf.loc[:,'text'] = tdf.loc[:,'text'].map(jlpb_classify.split)
     
-    print('tdf',tdf.shape)
-
     tdf[tdf == 'negative'] = 0
     tdf[tdf == 'positive'] = 1
     
-    print('TDF tail:5', tdf.tail(5))
-
     # Randomise the order of the Labelled set rows 
-    tdf = tdf.sample(frac=vocab_frac, random_state=np.random.RandomState(seed)).\
+    tdf = tdf.sample(frac=1, random_state=np.random.RandomState(seed)).\
         reset_index(drop=True)
 
     print('Tail labelled set', tdf.tail(5))
@@ -102,34 +109,32 @@ if __name__ == "__main__":
 
     # uncomment to use with 23rd data only:
     # udf = udf.iloc[:vocab_rows]
-    print(udf.size , ' unlabelled tweets for vocab')
+    print('unlabelled tweets for vocab:', udf.size)
     
-
     # we need to clean up chars in this unlabelled tweets and tokenise into words: 
     udf.loc[:,'text'] = udf.loc[:,'text'].map(jlpb_classify.split)
     total_num_unlabelled = udf.size
 
-    # Gensim Doc2Vec for high-dim vectors in model(s) for each tweet:
-    from gensim.models.doc2vec import TaggedDocument, Doc2Vec
-
     total_num = int(tdf.size/2)
     print('tweets data dims: ', total_num)
     
-    
-
     # split for the needed test and training data 
     # maintain approx. a 9:1 ratio of training:test,
     # as we have relatively little labelled data.
     training_num = total_num - test_num
     print('Test set size', test_num, 'Training set size', training_num)
     
-    documents = [TaggedDocument(list(tdf.loc[i,'text']),[i]) for i in range(0, total_num)]
-    documents_unlabelled = [TaggedDocument(list(udf.loc[i,'text']), \
-        [i+total_num]) for i in range(0, total_num_unlabelled)]
-    documents_all = documents + documents_unlabelled
+    # labelled
+    documents = [TaggedDocument(list(tdf.loc[i,'text']), \
+        [i]) for i in range(0, total_num)]
 
-    doc2vec_train_id = list(range(0, total_num + total_num_unlabelled))
-    random.shuffle(doc2vec_train_id)
+    # unlabelled
+    documents_unlabelled = [TaggedDocument(list(udf.loc[i,'text']), \
+        [i]) for i in range(0, total_num_unlabelled)]
+    documents_all = documents_unlabelled
+
+    doc2vec_train_id = list(range(0, total_num_unlabelled))
+    ### random.shuffle(doc2vec_train_id)
 
     # training documents for Doc2Vec 
     training_doc = [documents_all[id] for id in doc2vec_train_id]
@@ -137,66 +142,53 @@ if __name__ == "__main__":
     # get all class labels 
     class_labels = tdf.loc[:,'label']
 
-    # find out max system workers from the cores
-    # so we can make use of the max CPU:
-    import multiprocessing
-    cores = multiprocessing.cpu_count()
-
-    # build fresh models if True set below!
-    # (otherwise load from disk)
-    most_recent = dir_model + 'Mac_d2v_win10_420kseed50_200se5_ep20_minc6'
-    # save current labelled dataframe to a CSV 
-    tdf.to_csv(most_recent + 'LOG.csv')
-
-    model_DM, model_DBOW = (None, None)
+    # set the filename with some parameters - 
+    # so that we can load it again from disk after saving:
+    most_recent = dir_model + 'Mac_d2v_win10_420kseed50_200se5_ep30_minc5'
 
     # Train the two different methods of the Doc2Vec algorithm:
     # and change below line to True to load in new models:
-    if False:
+    if make_new_D2V_model:
+        
+
         # Parameters can be adjusted to try to get better accuracy from classifier.
-        model_DM = Doc2Vec(size=vecs, window=10, min_count=6, sample=1e-5,\
-         negative=5, workers=cores,  dm=1, dm_concat=1 )
-        model_DBOW = Doc2Vec(size=vecs, window=10, min_count=6, sample=1e-5,\
-         negative=5, workers=cores, dm=0)
+        model_DM = Doc2Vec(size=vecs, window=10, min_count=5, sample=1e-5,\
+         negative=5, workers=cores,  dm=1, dm_concat=1, iter=epochs)
+        model_DBOW = Doc2Vec(size=vecs, window=10, min_count=5, sample=1e-5,\
+         negative=5, workers=cores, dm=0, iter=epochs)
 
         # construct the vocabulary tables for our models
+        print('DM vocab build ...')
         model_DM.build_vocab(training_doc)
+        print('DBOW vocab build ...')
         model_DBOW.build_vocab(training_doc)
         
-        # train the models themselves
-        for it in range(0, epochs):
-            # progress as this takes a long time:
-            if (it % 2) == 0:
-                print('epoch ' + str(it) + ' of ' + str(epochs))
+        # train & save the models
+        print('DM training ...')
+        model_DM.train(training_doc, \
+            total_examples=model_DM.corpus_count, epochs=model_DM.iter)
+        model_DM.save(most_recent + 'DM.d2v')
 
-            random.shuffle(doc2vec_train_id)
-            training_doc = [documents_all[id] for id in doc2vec_train_id]
-            model_DM.train(training_doc)
-            model_DBOW.train(training_doc)
-
-        fout = 'DM.d2v'
-        # model_DM.init_sims(replace=True)
-        model_DM.save(most_recent + fout)
-
-        fout = 'DBOW.d2v'
-        # model_DBOW.init_sims(replace=True)
-        model_DBOW.save(most_recent + fout)
+        print('DBOW training ...')
+        model_DBOW.train(training_doc, \
+            total_examples=model_DBOW.corpus_count, epochs=model_DBOW.iter)
+        model_DBOW.save(most_recent + 'DBOW.d2v')
 
     else:
         # Load Doc2Vec model from disk:
-        fout = 'DM.d2v'
-        model_DM = Doc2Vec.load(most_recent + fout)
-        print ('shape synset DM:', model_DM.syn0.shape)
-        fout = 'DBOW.d2v'
-        model_DBOW = Doc2Vec.load(most_recent + fout)
+        model_DM = Doc2Vec.load(most_recent + 'DM.d2v')
+        # print ('shape synset DM:', model_DM.syn0.shape)
+        
+        model_DBOW = Doc2Vec.load(most_recent + 'DBOW.d2v')
 
+    print('vec size DM docvecs ', model_DM.docvecs.count)
 
     # viz some word vecs using tSNE
     import tsneviz
 
-    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'flooding')
-    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'thunderstorm')
-    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'delays')
+    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'flooding', vecs)
+    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'thunderstorm', vecs)
+    tsneviz.display_closestwords_tsnescatterplot(model_DM, 'delays', vecs)
 
 
     # Output some Diagnostic word vectors:
@@ -211,7 +203,6 @@ if __name__ == "__main__":
     print('lightning', model_DM.most_similar('lightning'))
     print('thunder', model_DM.most_similar('thunder'))
     print('thunderstorm', model_DM.most_similar('thunderstorm'))
-    print('ukstorm', model_DM.most_similar('ukstorm'))
     print('trains', model_DM.most_similar('trains'))
     print('delays', model_DM.most_similar('delays')) 
     print('light thunder similarity', model_DM.similarity('lightning', 'thunder'))
@@ -234,15 +225,15 @@ if __name__ == "__main__":
     import statsmodels.api as sm
     
     random.seed(1234) 
-
     new_index = random.sample(range(0, total_num), total_num)
 
-    # set the IDs for the test set:
+    # set the IDs for the test set
     testID = new_index[-test_num:]
 
     # set the IDs for the training set
     trainID = new_index[:-test_num]
 
+    # join the two models vectors together:
     train_targets, train_regressors = zip(*[(class_labels[id], \
         list(model_DM.docvecs[id]) + list(model_DBOW.docvecs[id])) for id in trainID])
 
@@ -250,13 +241,15 @@ if __name__ == "__main__":
     #  i.e. the log odds *only* when x1=x2=0, desirable to avoid biasing the model.
     train_regressors = sm.add_constant(train_regressors)
 
-    model_logreg = LogisticRegression(C=0.01, class_weight='balanced', tol=0.001, penalty='l2', max_iter=600, solver='sag', n_jobs=-1)
+    model_logreg = LogisticRegression(C=1, class_weight='balanced', \
+        tol=0.0001, penalty='l2', max_iter=600, solver='sag', n_jobs=-1)
     print('please wait.......fitting LR model.....')
     model_logreg.fit(train_regressors, train_targets) 
 
     ## Prepare the test data for testing the model:
     accuracies = []
-    test_regressors = [list(model_DM.docvecs[id]) + list(model_DBOW.docvecs[id]) for id in testID]
+    test_regressors = [list(model_DM.docvecs[id]) + list(model_DBOW.docvecs[id]) \
+    for id in testID]
 
     # add a constant term so that we fit the intercept of our linear model.
     test_regressors = sm.add_constant(test_regressors)
@@ -299,7 +292,6 @@ if __name__ == "__main__":
     confusion_mtx = confusion_matrix(cast, test_predictions)
     jlpb_classify.show_confusion_matrix(confusion_mtx)
 
-
     train_predictions = model_logreg.predict(train_regressors)
     accuracy = 0
     for i in range(0,len(train_targets)):
@@ -335,15 +327,16 @@ if __name__ == "__main__":
     # estimates of the positive class or confidence values
     # PREDICTED y-scores:
     pred_probas = model_logreg.predict_proba(test_regressors)[:, 1] 
-    print(pred_probas.shape) 
+    print('shape predictprobas', pred_probas.shape) 
 
     # ACTUAL y-test/ground truths
-    print('ground truths', tdf.loc[testID,u'label'].size, ' and ', tdf.loc[testID,u'label'].dtype) 
+    print('ground truths', tdf.loc[testID,u'label'].size, ' and ', \
+        tdf.loc[testID,u'label'].dtype) 
     
     fpr, tpr, _ = roc_curve(tdf.loc[testID,u'label'], pred_probas)
     roc_auc = auc(fpr,tpr)
     plt.plot(fpr, tpr, label='Area Under ROC curve = %.2f' % roc_auc)
-    plt.plot([0, 1], [0, 1], 'r--') # indicate a randomly guessing classifier performance 
+    plt.plot([0, 1], [0, 1], 'r--') # indicate a randomly guessing classifier's performance 
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
     plt.legend(loc='lower right')
@@ -352,21 +345,19 @@ if __name__ == "__main__":
     plt.ylabel('Recall (i.e. Sensitivity)')
 
     plt.show()
-
-
-
-    # average_precision = average_precision_score(tdf.loc[testID,u'label'], pred_probas)
-    average_precision = average_precision_score(tdf.loc[testID,u'label'].astype(int), pred_probas)
+    average_precision = average_precision_score(tdf.loc[testID, u'label'].astype(int), \
+        pred_probas)
     print('Average precision-recall score: ', average_precision)
 
     # print('Average precision-recall score: {0:0.2f}'.format(average_precision))
     # other metrics
     # print("Precision: %2f" % precision_score(tdf.loc[testID,u'label'], test_predictions)
-    print("F1: %2f" % f1_score(tdf.loc[testID,u'label'].astype(int), test_predictions, average="macro"))
+    print("F1: %2f" % f1_score(tdf.loc[testID,u'label'].astype(int), test_predictions, \
+        average="macro"))
     
     # need to just get the probs of the positive class, hence pred_probas[:,1]  
     # (NB or try instead: y_scores_lr = lr.fit(X_train, y_train).decision_function(X_test))
-    precision, recall, _ = precision_recall_curve(tdf.loc[testID,u'label'], pred_probas) #[:,1]
+    precision, recall, _ = precision_recall_curve(tdf.loc[testID,u'label'], pred_probas) 
     area = auc(recall, precision)
     print ("Area Under PR Curve(AP): %0.2f" % area)
     plt.step(recall, precision, color='b', alpha=0.2, where='post')
@@ -380,16 +371,17 @@ if __name__ == "__main__":
     plt.show()
     
     ## Demonstration:
-    ## predict unseen and unlabelled tweets now using infer_vector():
-    ## make a set of test tweets as tokenised lists first
+    ## predict unseen and unlabelled tweets now using infer_vector() -
+    ## make a set of new "test"/"unseen" tweets as tokenised lists first:
     tokens = list()
 
-    # irrelevant tests:
+    # irrelevant class tweets:
     tokens.append("what kind of sick mosquito bites the bottom of your foot".split())
+    # tokens.append("awwww am so tired man".split())
     tokens.append("if there was a bucket for pins on twitter we could easily fillet".split())
     tokens.append("when people message you and go why you up late".split())
     
-    # relevant tests
+    # relevant class tweets
     tokens.append("thanks lewisham station told to take blackfriars train and use underground district and circle lines suspended tfl onlyabitofrain".split())
     tokens.append("always rely on to get into work when floods hit the underground".split())
     tokens.append("everyone is enjoying the spa garden sunshine including the fish the moorhens ducks the turtles or is that tortoises".split())
@@ -400,18 +392,27 @@ if __name__ == "__main__":
     for tweet in tokens:
         
         # then make document vectors 
-        # NB Won't retrieve SAME vector cf https://github.com/RaRe-Technologies/gensim/issues/374
+        # NB Won't retrieve SAME vector 
+        # cf https://github.com/RaRe-Technologies/gensim/issues/374
         # "... it should wind up 'close' to the vector ..."
-        dvdm = model_DM.infer_vector(tweet)     # note: may want to use many more steps than default
+        dvdm = model_DM.infer_vector(tweet) # note: may want to use many more steps than default
         dvdbow = model_DBOW.infer_vector(tweet) 
 
         # find the similar tweets-documents:
         sims = model_DM.docvecs.most_similar(positive=[dvdm])
-        # print(sims)
+        print('For tweet: ', ' '.join(tweet))
+        print('..most similar docvecs from DM model:', sims)
+        print ('similar were: ')
+        for doc in sims:
+            # try the line number from CSV:
+            print (udf.iloc[doc[0]])
+
         # print('debug info for inferred docvec:')
         # pprint(jlpb_classify.dump(dvdm))
         
+        # join the two Doc2Vec algorithms' models to be consistent:
         dv = list(dvdm) + list(dvdbow) 
+
         # print('dv initially')
         # pprint(jlpb_classify.dump(dv)) 
         #print(dir(dv))

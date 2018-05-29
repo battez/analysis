@@ -34,7 +34,7 @@ def plot_region(x_bounds, y_bounds, points):
         ax.text(point.x + 0.005, point.y + 0.005, point.word, fontsize=11)
 
 
-def display_closestwords_tsnescatterplot(model, word, vec_size=200):
+def display_closestwords_tsnescatterplot(model, word, vec_size):
     '''
     tSNE visualising Word2Vec function.
     '''
